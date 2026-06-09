@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=320" />
+  <title>回响</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&family=DM+Serif+Display:ital@0;1&family=Source+Serif+4:ital,wght@0,400;1,400&family=DM+Mono:wght@400&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --rose:    #D9706A;
+      --rose-lt: #FDF0EF;
+      --rose-md: #F5C0BE;
+      --lav:     #9CA3D4;
+      --lav-lt:  #EEEEF8;
+      --sky:     #A8C8E0;
+      --sky-lt:  #EEF6FC;
+      --text:    #2A1520;
+      --text-md: #7A5560;
+      --text-lt: #B89098;
+      --bg:      #FFFCFA;
+      --card:    #FFFFFF;
+      --border:  #F0E0DF;
+      --border2: #E8D8D6;
+      --foot-bg: #FDF0EF;
+      --grad: linear-gradient(90deg, #F5C0BE 0%, #C8B8D8 50%, #A8C8E0 100%);
+    }
+    html, body { width: 320px; background: var(--bg); color: var(--text); font-family: 'DM Sans', 'Noto Sans SC', sans-serif; }
+    #app { width: 320px; min-height: 480px; }
+  </style>
+</head>
+<body>
+  <!-- SVG Sprite -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-keep" viewBox="0 0 16 16" fill="none">
+      <path d="M4 2.5h8a.5.5 0 0 1 .5.5v8.19a.5.5 0 0 1-.81.39L8 9.06l-3.69 2.52A.5.5 0 0 1 3.5 11.19V3a.5.5 0 0 1 .5-.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-used" viewBox="0 0 16 16" fill="none">
+      <path d="M3 8.5 6.2 12 13 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-sakura" viewBox="0 0 16 16" fill="none">
+      <path d="M8 3c0 0-.9-1.5-2.3-1.1S4 3.8 4.5 5c.2.5.4.8.4.8S3 5.5 2.2 6.7 2 9.2 3.5 9.7c.5.2 1 .2 1 .2S3.7 11 4.2 12.3 6 14 7.3 13.5c.5-.2.7-.5.7-.5s.2.3.7.5c1.3.5 2.8-.1 3.2-1.7.2-.5.2-1.3.2-1.3s.5 0 1-.2c1.5-.5 1.8-2.2 1-3.3-.5-.6-1.7-.9-1.7-.9s.2-.3.4-.8c.5-1.2-.2-2.7-1.5-3.1C10.9 1.5 10 3 10 3c0 0-.4-.5-1-.5s-1 .5-1 .5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+      <circle cx="8" cy="8" r="1.2" fill="currentColor" opacity=".7"/>
+    </symbol>
+    <symbol id="icon-article" viewBox="0 0 16 16" fill="none">
+      <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.1"/>
+      <path d="M5 5.5h6M5 8h6M5 10.5h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-check-sm" viewBox="0 0 16 16" fill="none">
+      <path d="M3.5 8 6.5 11l6-6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
+
+  <div id="app"></div>
+  <script type="module" src="./main.tsx"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "chord",
+  "private": true,
+  "packageManager": "pnpm@11.0.9",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:all": "pnpm test && pnpm build",
+    "test:full": "pnpm test && pnpm build && pnpm eval:synthetic",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "eval:synthetic": "pnpm --filter @chord/core eval:synthetic",
+    "eval:real": "pnpm --filter @chord/core eval:real",
+    "eval:user-storage": "pnpm --filter @chord/core eval:user-storage",
+    "eval:seed": "pnpm --filter @chord/core exec node test/eval/seed-ground-truth.mjs",
+    "chord:inspect": "pnpm --filter @chord/core chord:inspect"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@preact/preset-vite",
+      "vite",
+      "classic-level"
+    ]
+  },
+  "devDependencies": {
+    "puppeteer": "^24.43.0",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  }
+}

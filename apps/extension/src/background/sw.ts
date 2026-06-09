@@ -1,0 +1,1088 @@
+import {
+  ItemService, ResurfaceService, StreakService, ClusterService, Migration,
+  EchoIndexService, NotificationBudgetService, EchoMomentService, RecallService, MilestoneService,
+  buildEngine, classifyURL, getFaviconUrl, nextOccurrenceOf,
+} from '@chord/core'
+import { ChromeStorageAdapter } from '../storage/ChromeStorageAdapter.js'
+import { DEFAULT_NOTIFICATIONS } from '@chord/types'
+import type { BudgetLog, RecallFiredLog, MilestoneFiredLog } from '@chord/core'
+
+const adapter = new ChromeStorageAdapter()
+
+// ─── 主动出现系统：Icon Badge ─────────────────────────────────
+// Plan §Layer 0：badge 显示 echoIndex >= 60 的 pending/kept item 数
+// 实时跟踪 chrome.storage 变化，1s debounce 避免高频更新
+let badgeRefreshTimer: ReturnType<typeof setTimeout> | null = null
+let lastBadgeCount = -1   // cache，相等时跳过 setBadgeText 调用
+function scheduleBadgeRefresh() {
+  if (badgeRefreshTimer) clearTimeout(badgeRefreshTimer)
+  badgeRefreshTimer = setTimeout(() => {
+    badgeRefreshTimer = null
+    refreshBadge().catch((e) => console.warn('[Chord] badge refresh failed:', e))
+  }, 1000)
+}
+
+async function refreshBadge() {
+  const t0 = performance.now()
+  const settings = await adapter.getSettings()
+  const notif = settings.notifications ?? DEFAULT_NOTIFICATIONS
+  const mode = notif.badgeMode ?? 'number'
+
+  if (mode === 'off') {
+    if (lastBadgeCount !== 0) {
+      chrome.action.setBadgeText({ text: '' })
+      chrome.action.setTitle({ title: 'Chord · 念念不忘，必有回响' })
+      lastBadgeCount = 0
+    }
+    return
+  }
+
+  const items = await adapter.getItems({ status: ['pending', 'kept'], type: ['content'] })
+  const visitCounts = await ChromeStorageAdapter.getVisitCounts(items.map((i) => ({ id: i.id, url: i.url })))
+  const ready = EchoIndexService.countReadyToEcho(items, visitCounts)
+
+  if (ready === lastBadgeCount) return   // 没变化，省一次 chrome API 调用
+  lastBadgeCount = ready
+
+  if (ready === 0) {
+    chrome.action.setBadgeText({ text: '' })
+    chrome.action.setTitle({ title: 'Chord · 念念不忘，必有回响' })
+  } else {
+    const text = mode === 'dot' ? '·' : (ready > 9 ? '9+' : String(ready))
+    chrome.action.setBadgeText({ text })
+    chrome.action.setBadgeBackgroundColor({ color: '#D9706A' })
+    chrome.action.setTitle({ title: `Chord · ${ready} 条想跟你说话` })
+  }
+  const dt = performance.now() - t0
+  if (dt > 100) console.log(`[Chord] badge refresh took ${Math.round(dt)}ms (${items.length} items, ${ready} ready)`)
+}
+
+// chord_items / chord_settings 任意变化都触发 badge 重算（debounced）
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return
+  if (changes['chord_items'] || changes['chord_settings']) {
+    scheduleBadgeRefresh()
+  }
+})
+
+// 求「原收藏时间」：取 bookmark.dateAdded 与 chrome.history 最早访问时间的较早者
+// 用户可能 2 年前看过此页、1 天前才加书签——以更早的为准（更接近"用户最早接触"的语义）
+// 任一来源不可用时用另一个；都不可用返回 undefined（让 ItemService 走 Date.now() fallback）
+async function earliestSavedAt(url: string, dateAdded?: number): Promise<number | undefined> {
+  const earliestVisit = await ChromeStorageAdapter.getEarliestVisit(url)
+  if (typeof dateAdded === 'number' && dateAdded > 0 && earliestVisit !== null) {
+    return Math.min(dateAdded, earliestVisit)
+  }
+  if (typeof dateAdded === 'number' && dateAdded > 0) return dateAdded
+  if (earliestVisit !== null) return earliestVisit
+  return undefined
+}
+
+// ─── 首次安装 ───────────────────────────────────────────────
+
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('src/options/index.html#onboarding') })
+  }
+
+  // 扩展更新（Chrome 静默升级）：给已经打开的 Options/Popup 标签发广播
+  // 让它们提示用户「刷新一下用新版」，避免老 JS 跑新 SW 出怪事
+  if (details.reason === 'update') {
+    const newVersion = chrome.runtime.getManifest().version
+    await chrome.storage.local.set({
+      chord_extension_updated: {
+        from: details.previousVersion ?? 'unknown',
+        to: newVersion,
+        at: Date.now(),
+        dismissed: false,
+      },
+    })
+  }
+
+  await registerAlarmIfNeeded()
+  // 扩展更新/安装时立刻检查是否需要 recluster（算法升级时让用户尽快看到新结果）
+  // 用短延迟而非立刻调用：避免和首次 install 的 onboarding 流程抢资源
+  await chrome.alarms.create('chord_background_recluster', { delayInMinutes: 0.5 })
+
+  // SW 启动时立刻清 stale recluster_status（上次 recluster 被 SW 生命周期中断卡住的）
+  clearStaleReclusterStatus().catch((e) => console.warn('[Chord] clear stale status failed:', e))
+
+  // 一次性 migration：用 chrome.history 最早访问时间回溯修正 savedAt
+  migrateSavedAtToEarliestVisit().catch((e) => console.warn('[Chord] savedAt v1 migration failed:', e))
+  // v3.1.28-2 · savedAt v2 修复（解决 import dateAdded 丢失 bug）
+  migrateSavedAtV2().catch((e) => console.warn('[Chord] savedAt v2 migration failed:', e))
+
+  // v2 二向决策迁移：把老的 status='used' 改成 status='kept' + migratedFromUsed=true
+  // 详见 Chord_二向决策_实施方案.md §1
+  migrateUsedStatusToKept().catch((e) => console.warn('[Chord] status v2 migration failed:', e))
+
+  // SaveIntent v2 Sprint B.1：老 saveIntent → 多标签 saveIntents
+  migrateSaveIntentsV2Wrapper().catch((e) => console.warn('[Chord] saveIntents v2 migration failed:', e))
+
+  // 主动出现：立即刷一次 badge
+  refreshBadge().catch((e) => console.warn('[Chord] initial badge refresh failed:', e))
+  // 主动出现 Phase 4：注册 recall daily alarm
+  ensureRecallAlarm().catch((e) => console.warn('[Chord] recall alarm register failed:', e))
+  // SaveIntent v2：注册 intent batch alarm（每小时补判 unknown）
+  ensureIntentBatchAlarm().catch((e) => console.warn('[Chord] intent alarm register failed:', e))
+})
+
+chrome.runtime.onStartup.addListener(async () => {
+  await registerAlarmIfNeeded()
+  // 浏览器启动 / SW 唤醒：检查是否需要 recluster
+  await chrome.alarms.create('chord_background_recluster', { delayInMinutes: 0.5 })
+
+  clearStaleReclusterStatus().catch((e) => console.warn('[Chord] clear stale status failed:', e))
+  migrateSavedAtToEarliestVisit().catch((e) => console.warn('[Chord] savedAt v1 migration failed:', e))
+  // v3.1.28-2 · savedAt v2 修复（解决 import dateAdded 丢失 bug）
+  migrateSavedAtV2().catch((e) => console.warn('[Chord] savedAt v2 migration failed:', e))
+  migrateUsedStatusToKept().catch((e) => console.warn('[Chord] status v2 migration failed:', e))
+  migrateSaveIntentsV2Wrapper().catch((e) => console.warn('[Chord] saveIntents v2 migration failed:', e))
+
+  // 主动出现：浏览器启动也刷一次
+  refreshBadge().catch((e) => console.warn('[Chord] startup badge refresh failed:', e))
+  ensureRecallAlarm().catch((e) => console.warn('[Chord] recall alarm register failed:', e))
+  ensureIntentBatchAlarm().catch((e) => console.warn('[Chord] intent alarm register failed:', e))
+})
+
+// SW 启动时清掉「卡住的 recluster_status」
+// MV3 SW 生命周期：跑 recluster 期间 SW 可能被回收，{ running: true } 的 status 永远写不到 { running: false }
+// 用户看到「正在分析…」横幅永远不消失。SW 重启时如果发现 running=true 且 elapsed > 3 × eta，必然是 stale
+async function clearStaleReclusterStatus() {
+  const data = await chrome.storage.local.get('chord_recluster_status')
+  const s = data['chord_recluster_status'] as { running?: boolean; startedAt?: number; estimatedSeconds?: number } | undefined
+  if (!s?.running) return
+  const elapsed = s.startedAt ? Date.now() - s.startedAt : Infinity
+  const timeout = (s.estimatedSeconds ?? 60) * 3 * 1000
+  if (elapsed > timeout) {
+    await chrome.storage.local.remove('chord_recluster_status')
+    console.log(`[Chord] cleared stale recluster_status (elapsed ${Math.round(elapsed / 1000)}s > 3×eta ${Math.round(timeout / 1000)}s)`)
+  }
+}
+
+/** v3.1.28-2 · savedAt v2 修复 · 解决 import 时 dateAdded 丢失导致全部 savedAt = import 时间的 bug
+ *  实测：83 条 bookmark 的 savedAt 都被设成同一个时间戳（import 那刻）
+ *
+ *  跟 v1 的区别：
+ *  - v1 只用 chrome.history.getEarliestVisits，对老书签可能没数据
+ *  - v2 同时拉 chrome.bookmarks.getTree() 拿真 dateAdded，跟 history 取最早
+ *  - v2 不依赖 v1 的 flag（用独立 chord_savedat_migrated_v2 flag）
+ *  - 支持 force=true 跳过 flag（给 Settings 按钮用）
+ *
+ *  返回 { totalChecked, updated, oldest, newest } 让 UI 可以显示进度
+ */
+async function migrateSavedAtV2(force = false): Promise<{ totalChecked: number; updated: number; oldestDaysAgo: number; newestDaysAgo: number }> {
+  if (!force) {
+    const flag = await chrome.storage.local.get('chord_savedat_migrated_v2')
+    if (flag['chord_savedat_migrated_v2']) {
+      return { totalChecked: 0, updated: 0, oldestDaysAgo: 0, newestDaysAgo: 0 }
+    }
+  }
+
+  const items = await adapter.getItems()
+  const bookmarkItems = items.filter((i) => i.source === 'bookmark' || i.source === 'bookmark_auto')
+  if (bookmarkItems.length === 0) {
+    await chrome.storage.local.set({ chord_savedat_migrated_v2: { at: Date.now(), updated: 0, total: 0 } })
+    return { totalChecked: 0, updated: 0, oldestDaysAgo: 0, newestDaysAgo: 0 }
+  }
+
+  console.log(`[Chord] savedAt v2 修复：检查 ${bookmarkItems.length} 条 bookmark items…`)
+
+  // 1. 拉 chrome.bookmarks 全部 → 建 url → dateAdded 索引（用真 dateAdded 而非依赖 import 时传入的值）
+  const bookmarkIndex = new Map<string, number>()
+  try {
+    const tree = await chrome.bookmarks.getTree()
+    const walk = (node: chrome.bookmarks.BookmarkTreeNode) => {
+      if (node.url && typeof node.dateAdded === 'number' && node.dateAdded > 0) {
+        bookmarkIndex.set(node.url, node.dateAdded)
+      }
+      node.children?.forEach(walk)
+    }
+    tree.forEach(walk)
+  } catch (e) {
+    console.warn('[Chord] migrateSavedAtV2: chrome.bookmarks.getTree failed:', e)
+  }
+
+  // 2. 拉 chrome.history 最早访问
+  const urls = bookmarkItems.map((i) => i.url)
+  const earliestVisits = await ChromeStorageAdapter.getEarliestVisits(urls)
+
+  // 3. 对每个 item，取 min(bookmark.dateAdded, earliestVisit, currentSavedAt)
+  const NOW = Date.now()
+  let updated = 0
+  for (const item of bookmarkItems) {
+    const candidates: number[] = []
+    const bmDate = bookmarkIndex.get(item.url)
+    if (typeof bmDate === 'number' && bmDate > 0 && bmDate <= NOW) candidates.push(bmDate)
+    const earliest = earliestVisits.get(item.url)
+    if (typeof earliest === 'number' && earliest > 0 && earliest <= NOW) candidates.push(earliest)
+    if (candidates.length === 0) continue
+
+    const earliestNew = Math.min(...candidates)
+    // 只在新值比当前 savedAt 更早 ≥ 1 天 时 update（避免噪声 update）
+    if (earliestNew < item.savedAt - 86_400_000) {
+      await adapter.putItem({ ...item, savedAt: earliestNew })
+      updated++
+    }
+  }
+
+  // 统计 oldest/newest
+  const refreshed = await adapter.getItems()
+  const bookmarks = refreshed.filter((i) => i.source === 'bookmark' || i.source === 'bookmark_auto')
+  const oldest = bookmarks.length > 0 ? Math.min(...bookmarks.map((i) => i.savedAt)) : NOW
+  const newest = bookmarks.length > 0 ? Math.max(...bookmarks.map((i) => i.savedAt)) : NOW
+  const oldestDaysAgo = Math.floor((NOW - oldest) / 86_400_000)
+  const newestDaysAgo = Math.floor((NOW - newest) / 86_400_000)
+
+  console.log(`[Chord] savedAt v2 done: 修正 ${updated}/${bookmarkItems.length} 条；oldest=${oldestDaysAgo}d, newest=${newestDaysAgo}d`)
+  await chrome.storage.local.set({
+    chord_savedat_migrated_v2: { at: Date.now(), updated, total: bookmarkItems.length, oldestDaysAgo, newestDaysAgo },
+  })
+  return { totalChecked: bookmarkItems.length, updated, oldestDaysAgo, newestDaysAgo }
+}
+
+// 一次性 migration：把现有 item 的 savedAt 回溯成「chrome.history 最早访问时间」
+// 用户反馈：bookmark.dateAdded 可能是 Chrome 同步时刷新的，不反映真正的「最早接触」时间
+// 通过 chord_savedat_migrated_v1 flag 防重跑
+async function migrateSavedAtToEarliestVisit() {
+  const flag = await chrome.storage.local.get('chord_savedat_migrated_v1')
+  if (flag['chord_savedat_migrated_v1']) return
+
+  const items = await adapter.getItems()
+  if (items.length === 0) {
+    await chrome.storage.local.set({ chord_savedat_migrated_v1: { at: Date.now(), updated: 0, total: 0 } })
+    return
+  }
+
+  console.log(`[Chord] savedAt migration: 检查 ${items.length} 条 item 的 chrome.history…`)
+  const urls = items.map((i) => i.url)
+  const earliestVisits = await ChromeStorageAdapter.getEarliestVisits(urls)
+
+  let updatedCount = 0
+  for (const item of items) {
+    const earliest = earliestVisits.get(item.url)
+    if (earliest === undefined) continue
+    if (earliest >= item.savedAt) continue   // 现有 savedAt 已经更早或相同，不动
+    await adapter.putItem({ ...item, savedAt: earliest })
+    updatedCount++
+  }
+
+  console.log(`[Chord] savedAt migration done: ${updatedCount}/${items.length} 条被修正成更早的 history 时间`)
+  await chrome.storage.local.set({
+    chord_savedat_migrated_v1: { at: Date.now(), updated: updatedCount, total: items.length },
+  })
+}
+
+// v2 一次性 migration：把老 status='used' 的 item 改成 status='kept' + migratedFromUsed=true
+// 详见 packages/core/src/services/Migration.ts + Chord_二向决策_实施方案.md §1
+// 通过 chord_status_migrated_v2 flag 防重跑
+async function migrateUsedStatusToKept() {
+  const flag = await chrome.storage.local.get('chord_status_migrated_v2')
+  if (flag['chord_status_migrated_v2']) return
+
+  const result = await Migration.migrateUsedToKept(adapter)
+  console.log(`[Chord] status v2 migration done: ${result.migratedCount}/${result.totalItems} 条 used → kept (migratedFromUsed=true)`)
+  await chrome.storage.local.set({
+    chord_status_migrated_v2: { at: Date.now(), migrated: result.migratedCount, total: result.totalItems },
+  })
+}
+
+// SaveIntent v2 Sprint B.1 migration：老单标签 saveIntent → 多标签 saveIntents
+// 通过 chord_saveintents_migrated_v1 flag 防重跑
+async function migrateSaveIntentsV2Wrapper() {
+  const flag = await chrome.storage.local.get('chord_saveintents_migrated_v1')
+  if (flag['chord_saveintents_migrated_v1']) return
+
+  const result = await Migration.migrateSaveIntentsV2(adapter)
+  console.log(`[Chord] saveIntents v2 migration done: ${result.migratedCount}/${result.totalItems} 条 saveIntent → saveIntents`)
+  await chrome.storage.local.set({
+    chord_saveintents_migrated_v1: { at: Date.now(), migrated: result.migratedCount, total: result.totalItems },
+  })
+}
+
+// ─── 书签自动监听（Auto-capture）────────────────────────────
+
+// 后台 recluster 触发器（item 增加时调用，debounce 1 分钟）
+// 避免连续添加书签时频繁 recluster；保证用户停止添加 1 分钟后跑一次
+const BACKGROUND_RECLUSTER_ALARM = 'chord_background_recluster'
+async function scheduleBackgroundRecluster() {
+  await chrome.alarms.create(BACKGROUND_RECLUSTER_ALARM, { delayInMinutes: 1 })
+}
+
+// 即时后台 recluster：用户高频触发的入口（Popup 打开、Options 打开）调用。
+// 不等 alarm 的 30s 最小延迟，立刻 fire-and-forget。
+// 内置防抖：5 分钟内只跑一次，避免用户连续点扩展图标时重复调 AI。
+let lastImmediateReclusterAt = 0
+const IMMEDIATE_RECLUSTER_DEBOUNCE_MS = 5 * 60 * 1000
+
+// 估算 recluster 时间（秒）
+// AI 模式（智谱 GLM-4-Flash）：基础 ~10s + 每 50 条 5s（一次性塞 prompt 还要看长度）
+// 离线 TF-IDF：~0.02 * items.length（1000 条 20 秒；100 条 2 秒）
+function estimateReclusterSeconds(itemCount: number, mode: 'ai' | 'offline'): number {
+  if (mode === 'ai') return Math.max(10, Math.round(10 + (itemCount / 50) * 5))
+  return Math.max(2, Math.round(itemCount * 0.02))
+}
+
+// 写状态到 storage——UI 订阅 chrome.storage.onChanged 显示进度
+async function setReclusterStatus(status: {
+  running: boolean
+  startedAt?: number
+  totalItems?: number
+  estimatedSeconds?: number
+  lastError?: string
+  lastCompletedAt?: number
+}) {
+  await chrome.storage.local.set({ chord_recluster_status: status })
+}
+
+async function maybeRunBackgroundRecluster(opts: { force?: boolean } = {}) {
+  const now = Date.now()
+  if (!opts.force && now - lastImmediateReclusterAt < IMMEDIATE_RECLUSTER_DEBOUNCE_MS) return
+
+  // 注意：防抖时间戳要在「确认要真跑 recluster」之后才更新，
+  // 否则前面 items<15 / !needs 这些早退路径会把防抖锁住，导致后续真正需要重算时被跳过
+  try {
+    const items = await adapter.getItems({ type: ['content'] })
+    if (items.length < 15) return
+    if (!opts.force && !(await ClusterService.shouldRecluster(adapter))) return
+
+    // 确认要跑了，才更新防抖时间戳
+    lastImmediateReclusterAt = now
+
+    const settings = await adapter.getSettings()
+    const mode: 'ai' | 'offline' = settings.aiEngine.mode === 'ai' && settings.aiEngine.apiKey ? 'ai' : 'offline'
+    const eta = estimateReclusterSeconds(items.length, mode)
+    console.log(`[Chord] starting background recluster: ${items.length} items, mode=${mode}, eta≈${eta}s`)
+
+    // 写状态：UI 可以订阅展示进度
+    await setReclusterStatus({
+      running: true,
+      startedAt: now,
+      totalItems: items.length,
+      estimatedSeconds: eta,
+    })
+
+    // 真正的 fire-and-forget：不 await，不阻塞 message handler
+    ClusterService.recluster(adapter, buildEngine(settings.aiEngine))
+      .then(() => {
+        console.log('[Chord] background recluster done')
+        setReclusterStatus({ running: false, lastCompletedAt: Date.now() })
+      })
+      .catch((e) => {
+        console.warn('[Chord] background recluster failed:', e)
+        setReclusterStatus({ running: false, lastError: (e as Error).message?.slice(0, 200), lastCompletedAt: Date.now() })
+      })
+  } catch (e) {
+    console.warn('[Chord] maybeRunBackgroundRecluster check failed:', e)
+  }
+}
+
+chrome.bookmarks.onCreated.addListener(async (_id, bookmark) => {
+  if (!bookmark.url) return
+
+  const settings = await adapter.getSettings()
+  const classification = classifyURL(bookmark.url, settings.domainPrefs)
+
+  // 「原收藏时间」= min(bookmark.dateAdded, chrome.history 最早访问)
+  // 用户可能很久前就访问过此页，今天才加书签——以更早的为准
+  const earliest = await earliestSavedAt(bookmark.url, bookmark.dateAdded)
+
+  // 永不询问的工具型（gmail 等）→ 静默归入快速入口
+  if (classification.type === 'tool' && 'neverAsk' in classification && classification.neverAsk) {
+    await ItemService.saveItem(
+      adapter,
+      { url: bookmark.url, title: bookmark.title ?? '', source: 'bookmark_auto', favicon: getFaviconUrl(bookmark.url), type: 'tool', savedAt: earliest },
+      { userId: settings.userId, deviceId: settings.deviceId, engine: buildEngine(settings.aiEngine) },
+    )
+    return
+  }
+
+  // 高置信度内容型 → 静默归入书房
+  if (classification.type === 'content' && classification.confidence === 'high') {
+    const result = await ItemService.saveItem(
+      adapter,
+      { url: bookmark.url, title: bookmark.title ?? '', source: 'bookmark_auto', favicon: getFaviconUrl(bookmark.url), type: 'content', savedAt: earliest },
+      { userId: settings.userId, deviceId: settings.deviceId, engine: buildEngine(settings.aiEngine) },
+    )
+    if (result.status === 'added') {
+      // 通知 content script 显示 Toast
+      notifyActiveTab({ type: 'SHOW_SAVE_TOAST', message: '已自动纳入书房' })
+      // 加入新 content 后调度一次后台 recluster（debounced 1 分钟）
+      scheduleBackgroundRecluster()
+    }
+    return
+  }
+
+  // 高置信度工具型 → 静默归入快速入口
+  if (classification.type === 'tool') {
+    await ItemService.saveItem(
+      adapter,
+      { url: bookmark.url, title: bookmark.title ?? '', source: 'bookmark_auto', favicon: getFaviconUrl(bookmark.url), type: 'tool', savedAt: earliest },
+      { userId: settings.userId, deviceId: settings.deviceId, engine: buildEngine(settings.aiEngine) },
+    )
+    return
+  }
+
+  // 低置信度 → 通知 content script 弹询问气泡
+  notifyActiveTab({
+    type: 'SHOW_CLASSIFICATION_BUBBLE',
+    url: bookmark.url,
+    title: bookmark.title ?? '',
+    domain: classification.domain,
+  })
+})
+
+// ─── 唤醒定时器 ─────────────────────────────────────────────
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  // 后台 recluster：用户停止添加书签 1 分钟后触发；只在需要 recluster 时才跑
+  // CR-027：alarm 路径也走 maybeRunBackgroundRecluster，复用 status 上报（之前 alarm 跑完 UI 看不到）
+  // 不传 force——让 shouldRecluster() 决定是否真的需要跑。
+  //   之前传 force: true 是 bug，每次 SW 重启（如手动 reload 扩展）都会 30 秒后无脑跑一次 recluster
+  if (alarm.name === BACKGROUND_RECLUSTER_ALARM) {
+    maybeRunBackgroundRecluster()
+    return
+  }
+
+  // 主动出现 Phase 4：重新召回检查（每天一次）
+  if (alarm.name === RECALL_ALARM) {
+    checkRecallTriggers().catch((e) => console.warn('[Chord] recall check failed:', e))
+    return
+  }
+
+  // SaveIntent v2 Sprint A.3：异步意图补判（每小时一次）
+  // 保存时同步 AI 失败 / 超时的 item 在这里批量补救
+  if (alarm.name === INTENT_BATCH_ALARM) {
+    classifyUnknownIntentsAsync().catch((e) => console.warn('[Chord] intent batch failed:', e))
+    return
+  }
+
+  if (alarm.name !== 'chord_daily_resuface') return
+
+  const settings = await adapter.getSettings()
+  if (!ResurfaceService.isTimeToResuface(settings)) return
+
+  // 主动出现 Phase 1：尊重通知设置
+  const notif = settings.notifications ?? DEFAULT_NOTIFICATIONS
+  if (notif.daily === false) {
+    console.log('[Chord] daily notification skipped: user disabled')
+    return
+  }
+  if (notif.muteUntil && notif.muteUntil > Date.now()) {
+    console.log(`[Chord] daily notification skipped: muted until ${new Date(notif.muteUntil).toISOString()}`)
+    return
+  }
+  // 安静时段
+  const nowHour = new Date().getHours()
+  const inQuiet = notif.quietStart <= notif.quietEnd
+    ? (nowHour >= notif.quietStart && nowHour < notif.quietEnd)         // 同一天内（如 1-5）
+    : (nowHour >= notif.quietStart || nowHour < notif.quietEnd)         // 跨夜（如 22-8）
+  if (inQuiet) {
+    console.log(`[Chord] daily notification skipped: quiet hours (${notif.quietStart}-${notif.quietEnd}, now ${nowHour})`)
+    return
+  }
+  // 周末
+  const day = new Date().getDay()
+  if (notif.skipWeekend && (day === 0 || day === 6)) {
+    console.log('[Chord] daily notification skipped: weekend')
+    return
+  }
+  // 4 小时内已主动开过 popup/options → 用户已经在用，不推
+  if (settings.lastOpenedAt && Date.now() - settings.lastOpenedAt < 4 * 3600_000) {
+    console.log('[Chord] daily notification skipped: user opened Chord within 4h')
+    return
+  }
+  // 通知预算
+  const budget = await getBudget()
+  if (!NotificationBudgetService.canSend(budget, 'daily')) {
+    console.log('[Chord] daily notification skipped: budget exhausted')
+    return
+  }
+
+  const items = await adapter.getItems({ status: ['pending', 'kept'], type: ['content'] })
+  const visitCounts = await ChromeStorageAdapter.getVisitCounts(
+    items.map((i) => ({ id: i.id, url: i.url })),
+  )
+  const item = ResurfaceService.selectItemToResuface(items, visitCounts)
+  if (!item) return
+
+  // 质量门槛：echoIndex < 40 不发（没什么值得说的）
+  const itemEchoIndex = EchoIndexService.computeEchoIndex({
+    item,
+    visitCount: visitCounts.get(item.id) ?? 0,
+  })
+  if (itemEchoIndex < 40) {
+    console.log(`[Chord] daily notification skipped: top item echoIndex ${itemEchoIndex} < 40 quality threshold`)
+    return
+  }
+
+  // 标记已唤醒
+  await ItemService.markWoken(adapter, item.id, {
+    userId: settings.userId,
+    deviceId: settings.deviceId,
+  })
+
+  // 生成问句（AI 离线）
+  const question = await buildEngine(settings.aiEngine).generateQuestion({
+    title: item.title,
+    domain: item.sourceDomain,
+    savedAt: item.savedAt,
+    wakeCount: item.wakeCount,
+    userNote: item.userNote,
+    cluster: item.cluster,
+  })
+
+  // 更新 item 的 aiQuestion 字段
+  await adapter.putItem({ ...item, aiQuestion: question, wakeCount: item.wakeCount + 1 })
+
+  // 发推送通知
+  await chrome.notifications.create(`resuface_${item.id}`, {
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('assets/icon-128.png'),
+    title: '回响',
+    message: question,
+    contextMessage: `${item.title.slice(0, 50)}`,
+  })
+
+  // 记录通知预算
+  await setBudget(NotificationBudgetService.recordSent(budget, 'daily'))
+
+  // 更新 lastResurfacedAt
+  await adapter.putSettings({ lastResurfacedAt: Date.now() })
+
+  // 更新 streak
+  await StreakService.checkAndUpdateStreak(adapter, settings)
+
+  // 检查是否需要重新聚类
+  if (await ClusterService.shouldRecluster(adapter)) {
+    ClusterService.recluster(adapter, buildEngine(settings.aiEngine)).catch(console.error)
+  }
+})
+
+// ─── 通知点击 ────────────────────────────────────────────────
+
+chrome.notifications.onClicked.addListener((notifId) => {
+  chrome.notifications.clear(notifId)
+  // 主动出现：根据通知 id 前缀路由到不同 options 页
+  let hash = '#process'  // 默认（resuface_ / echo_）
+  if (notifId.startsWith('milestone_')) {
+    // milestone 路由：id 形如 milestone_items_100 → 去 dashboard
+    if (notifId.includes('items_')) hash = '#dashboard'
+    else if (notifId.includes('streak_')) hash = '#profile'
+    else if (notifId.includes('processed_')) hash = '#profile'
+  } else if (notifId.startsWith('recall_')) {
+    hash = '#dashboard'  // 重新召回 → 直接进候响室
+  }
+  chrome.tabs.create({ url: chrome.runtime.getURL(`src/options/index.html${hash}`) })
+})
+
+// ─── 消息桥接 ────────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
+  const message = msg as Record<string, unknown>
+
+  if (message['type'] === 'SAVE_CURRENT_PAGE') {
+    handleSaveCurrentPage(message).then(sendResponse)
+    return true // 异步响应
+  }
+
+  // v3.1.28-2 · 强制重跑 savedAt v2 修复（Settings 按钮触发）
+  if (message['type'] === 'FORCE_SAVEDAT_FIX') {
+    migrateSavedAtV2(true).then(sendResponse).catch((e) => {
+      console.warn('[Chord] FORCE_SAVEDAT_FIX failed:', e)
+      sendResponse({ error: String(e) })
+    })
+    return true
+  }
+
+  if (message['type'] === 'USER_DOMAIN_PREF') {
+    const { domain, itemType } = message as { domain: string; itemType: 'content' | 'tool' }
+    adapter.getSettings().then((s) => {
+      adapter.putSettings({
+        domainPrefs: { ...s.domainPrefs, [domain]: itemType },
+      })
+    })
+  }
+
+  if (message['type'] === 'GET_TODAY_ITEM') {
+    getTodayItem().then(sendResponse)
+    // 用户点扩展图标 → Popup 打开 → 调 GET_TODAY_ITEM。
+    // 这是高频入口；趁机 fire-and-forget 检查 + 触发后台 recluster。
+    // 用户在 Popup 处理 1-2 条 item 的时间足够 AI 跑完，等用户后面进 Terrain 已经有新结果。
+    maybeRunBackgroundRecluster()
+    return true
+  }
+
+  if (message['type'] === 'ENSURE_AI_QUESTION') {
+    // 修法 A · popup 拿到 item 后异步拉问句填充
+    const { itemId } = message as { itemId: string }
+    ensureAIQuestion(itemId).then((question) => sendResponse({ question }))
+    return true
+  }
+
+  if (message['type'] === 'PAGE_OPENED') {
+    // Options / Popup 任何页面打开都触发——确保用户进任何页面都能看到最新分类
+    maybeRunBackgroundRecluster()
+    return false
+  }
+
+  if (message['type'] === 'RECORD_CHIP') {
+    const { itemId, chip } = message as { itemId: string; chip: string | null }
+    if (chip) {
+      adapter.getItem(itemId).then(async (it) => {
+        if (it) await adapter.putItem({ ...it, usageChip: chip })
+      })
+    }
+  }
+
+  if (message['type'] === 'PROCESS_ITEM') {
+    const { itemId, decision, chip, custom, reason, reasonCustom, deleteBookmark } = message as {
+      itemId: string
+      decision: 'keep' | 'used' | 'release'
+      chip?: string
+      custom?: string
+      reason?: import('@chord/types').ReleaseReason
+      reasonCustom?: string
+      deleteBookmark?: boolean
+    }
+    handleProcessItem(itemId, decision, { chip, custom, reason, reasonCustom, deleteBookmark }).then(sendResponse)
+    return true
+  }
+
+  // v2 二向决策：单条删 Chrome 书签
+  if (message['type'] === 'DELETE_BOOKMARK') {
+    const { url } = message as { url: string }
+    ChromeStorageAdapter.removeBookmarkByUrl(url).then((removed) => {
+      console.log(`[Chord] removed ${removed} chrome bookmark(s) for ${url}`)
+      sendResponse({ removed })
+    })
+    return true
+  }
+
+  // v2 二向决策：批量删 Chrome 书签
+  if (message['type'] === 'DELETE_BOOKMARKS_BATCH') {
+    const { urls } = message as { urls: string[] }
+    ChromeStorageAdapter.removeBookmarksByUrls(urls).then((removed) => {
+      console.log(`[Chord] batch removed ${removed} chrome bookmark(s) (${urls.length} urls)`)
+      sendResponse({ removed })
+    })
+    return true
+  }
+})
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+async function handleSaveCurrentPage(msg: Record<string, unknown>) {
+  const { url, title, favicon, tabId } = msg as { url: string; title: string; favicon?: string; tabId?: number }
+  const settings = await adapter.getSettings()
+
+  // Try to get page text excerpt from content script for richer clustering
+  let excerpt: string | undefined
+  if (tabId != null) {
+    try {
+      const resp = await chrome.tabs.sendMessage(tabId, { type: 'GET_PAGE_TEXT' }) as { text?: string }
+      if (resp?.text) excerpt = resp.text
+    } catch {
+      // Content script not ready or tab not accessible — proceed without excerpt
+    }
+  }
+
+  // 主动保存：没有 Chrome bookmark.dateAdded，但 history 里可能有更早访问记录
+  const earliest = await earliestSavedAt(url)
+
+  const result = await ItemService.saveItem(
+    adapter,
+    { url, title, favicon, source: 'saved', excerpt, savedAt: earliest },
+    { userId: settings.userId, deviceId: settings.deviceId, engine: buildEngine(settings.aiEngine) },
+  )
+
+  return { status: result.status, itemId: result.item.id }
+}
+
+async function getTodayItem() {
+  const items = await adapter.getItems({ status: ['pending', 'kept'], type: ['content'] })
+
+  // ★ 设计反转（之前 B-002 修了"卡死同一条"，但把契约改成"同一天同一条"也是错的——
+  //   用户开 popup 期望的就是看不同思考点，不是被同一条堵着）
+  // 现在每次开 popup 都走 fresh 选择；ResurfaceService 的 wakeCount × -10 衰减项
+  // 自动避免短时间内反复推同一条。
+  const visitCounts = await ChromeStorageAdapter.getVisitCounts(
+    items.map((i) => ({ id: i.id, url: i.url })),
+  )
+  const item = ResurfaceService.selectItemToResuface(items, visitCounts)
+  if (!item) return null
+
+  // 修法 A · aiQuestion 拆懒加载：getTodayItem 不再阻塞等 AI
+  //   - 有缓存 aiQuestion → 直接复用，不动
+  //   - 无缓存 → 立刻返回（aiQuestion=undefined）+ wakeCount+1 落盘；
+  //             popup 拿到 item 后再发 ENSURE_AI_QUESTION 异步生成填充
+  // 这把 popup 首屏从 1-3s（含 AI 调用）压到 200-500ms（仅 storage + history）
+  const updated = { ...item, wakeCount: item.wakeCount + 1 }
+  await adapter.putItem(updated)
+  return updated
+}
+
+/** 修法 A · 异步生成 aiQuestion 并落盘，给 popup lazy load 用 */
+async function ensureAIQuestion(itemId: string): Promise<string | null> {
+  const item = await adapter.getItem(itemId)
+  if (!item) return null
+  if (item.aiQuestion) return item.aiQuestion  // 已有缓存，直接返回
+
+  const settings = await adapter.getSettings()
+  const question = await buildEngine(settings.aiEngine).generateQuestion({
+    title: item.title,
+    domain: item.sourceDomain,
+    savedAt: item.savedAt,
+    wakeCount: item.wakeCount,
+    userNote: item.userNote,
+    cluster: item.cluster,
+  })
+
+  // 写回 storage 缓存（下次同 item 直接复用，不再调 AI）
+  // 重新读 item 是为了避免 race condition（用户可能在 AI 跑的时候已 process 了这条）
+  const fresh = await adapter.getItem(itemId)
+  if (fresh) await adapter.putItem({ ...fresh, aiQuestion: question })
+  return question
+}
+
+async function handleProcessItem(
+  itemId: string,
+  decision: 'keep' | 'used' | 'release',
+  opts: {
+    chip?: string
+    custom?: string
+    reason?: import('@chord/types').ReleaseReason
+    reasonCustom?: string
+    deleteBookmark?: boolean
+  } = {},
+) {
+  const settings = await adapter.getSettings()
+  // 先抓 URL（用于可能的书签删除），processItem 之后 item 仍然存在（只改 status）
+  const itemBefore = await adapter.getItem(itemId)
+  const item = await ItemService.processItem(adapter, itemId, decision, {
+    userId: settings.userId,
+    deviceId: settings.deviceId,
+    chip: opts.chip,
+    custom: opts.custom,
+    reason: opts.reason,
+    reasonCustom: opts.reasonCustom,
+  })
+  await StreakService.checkAndUpdateStreak(adapter, settings)
+  await bumpRhythmDay()
+
+  // v2: 如果是放手 + 用户要删 Chrome 书签
+  if (decision === 'release' && opts.deleteBookmark && itemBefore) {
+    ChromeStorageAdapter.removeBookmarkByUrl(itemBefore.url).then((removed) => {
+      console.log(`[Chord] removed ${removed} chrome bookmark(s) for released item`)
+    })
+  }
+
+  return { status: 'ok', itemId: item.id }
+}
+
+// 写入「本日已处理」节奏数据，供 Dashboard.WeekRhythm 读取
+async function bumpRhythmDay() {
+  const today = isoDateLocal(new Date())  // 'YYYY-MM-DD'（本地时区）
+  const { rhythm_days = {} } = await chrome.storage.local.get('rhythm_days') as { rhythm_days?: Record<string, number> }
+  rhythm_days[today] = (rhythm_days[today] ?? 0) + 1
+  await chrome.storage.local.set({ rhythm_days })
+}
+
+function isoDateLocal(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+async function registerAlarmIfNeeded() {
+  const existing = await chrome.alarms.get('chord_daily_resuface')
+  if (existing) return
+
+  const settings = await adapter.getSettings()
+  const [h, m] = settings.resurfaceTime.split(':').map(Number)
+  const when = nextOccurrenceOf(h ?? 9, m ?? 0).getTime()
+
+  await chrome.alarms.create('chord_daily_resuface', {
+    when,
+    periodInMinutes: 24 * 60,
+  })
+}
+
+function notifyActiveTab(msg: Record<string, unknown>) {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tabId = tabs[0]?.id
+    if (tabId != null) {
+      chrome.tabs.sendMessage(tabId, msg).catch(() => {
+        // content script 未注入（新标签页等），忽略
+      })
+    }
+  })
+}
+
+// ═══════════════ 主动出现系统 · Phase 2-5 ═══════════════════════
+
+// ─── Phase 2: 通知预算 storage helpers ──────────────────────────
+
+async function getBudget(): Promise<BudgetLog> {
+  const data = await chrome.storage.local.get('chord_notif_log')
+  return (data['chord_notif_log'] as BudgetLog | undefined) ?? {}
+}
+async function setBudget(log: BudgetLog): Promise<void> {
+  await chrome.storage.local.set({ chord_notif_log: log })
+}
+
+// ─── Phase 3: Echo Moment 触发式（chrome.history.onVisited）─────
+
+chrome.history.onVisited.addListener(async (historyItem) => {
+  try {
+    if (!historyItem.url) return
+    const items = await adapter.getItems({ type: ['content'] })
+    const matched = items.find((i) => i.url === historyItem.url)
+    if (!matched) return
+
+    // 更新 lastVisitedAt
+    await adapter.putItem({ ...matched, lastVisitedAt: Date.now() })
+
+    // 检查通知设置
+    const settings = await adapter.getSettings()
+    const notif = settings.notifications ?? DEFAULT_NOTIFICATIONS
+    if (!notif.echoMoment) return
+    if (notif.muteUntil && notif.muteUntil > Date.now()) return
+
+    // 安静时段
+    const nowHour = new Date().getHours()
+    const inQuiet = notif.quietStart <= notif.quietEnd
+      ? (nowHour >= notif.quietStart && nowHour < notif.quietEnd)
+      : (nowHour >= notif.quietStart || nowHour < notif.quietEnd)
+    if (inQuiet) return
+
+    // 查询最新 visitCount（chrome.history 自己已经累计了）
+    const visitCount = await ChromeStorageAdapter.getVisitCount(matched.url)
+
+    // 评估是否要 trigger
+    const result = EchoMomentService.evaluate(matched, visitCount)
+    if (!result.shouldTrigger) return
+
+    // 通知预算
+    const budget = await getBudget()
+    if (!NotificationBudgetService.canSend(budget, 'echo_moment')) {
+      console.log('[Chord] echo moment skipped: budget exhausted')
+      return
+    }
+
+    // 发通知
+    await chrome.notifications.create(`echo_${matched.id}`, {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('assets/icon-128.png'),
+      title: '念念之响',
+      message: result.message!,
+      contextMessage: `${matched.title.slice(0, 50)}`,
+    })
+
+    // 记录预算 + 更新 item 防重
+    await setBudget(NotificationBudgetService.recordSent(budget, 'echo_moment'))
+    await adapter.putItem({
+      ...matched,
+      lastVisitedAt: Date.now(),
+      echoMomentTriggeredAt: Date.now(),
+      echoMomentLastVisitCount: visitCount,
+    })
+    console.log(`[Chord] echo moment triggered for ${matched.title.slice(0, 40)} at visit ${visitCount} (threshold ${result.threshold})`)
+  } catch (e) {
+    console.warn('[Chord] history.onVisited handler failed:', e)
+  }
+})
+
+// ─── Phase 4: 重新召回 daily alarm ──────────────────────────────
+
+const RECALL_ALARM = 'chord_recall_check'
+
+async function ensureRecallAlarm() {
+  const existing = await chrome.alarms.get(RECALL_ALARM)
+  if (existing) return
+  // 每天检查一次，首次延迟 30 分钟（让安装/启动顺利完成）
+  await chrome.alarms.create(RECALL_ALARM, {
+    delayInMinutes: 30,
+    periodInMinutes: 24 * 60,
+  })
+}
+
+async function getRecallFired(): Promise<RecallFiredLog> {
+  const data = await chrome.storage.local.get('chord_recall_fired')
+  return (data['chord_recall_fired'] as RecallFiredLog | undefined) ?? {}
+}
+async function setRecallFired(log: RecallFiredLog): Promise<void> {
+  await chrome.storage.local.set({ chord_recall_fired: log })
+}
+
+async function checkRecallTriggers() {
+  const settings = await adapter.getSettings()
+  const notif = settings.notifications ?? DEFAULT_NOTIFICATIONS
+  if (!notif.recall) {
+    console.log('[Chord] recall check skipped: user disabled')
+    return
+  }
+  if (notif.muteUntil && notif.muteUntil > Date.now()) return
+
+  const fired = await getRecallFired()
+  const result = RecallService.evaluate(settings.lastOpenedAt, fired)
+
+  // 3 天起 badge 加深（重置 lastBadgeCount 触发重算）
+  if (result.shouldDimBadge) {
+    lastBadgeCount = -1   // 强制下次 refreshBadge 改色
+    chrome.action.setBadgeBackgroundColor({ color: '#A85048' })  // 加深的玫瑰
+  }
+
+  if (result.triggers.length === 0) return
+
+  // 收集 14 天回响的摘要数据（可选，简化版：只统计总新增数）
+  let summary: { topCluster?: string; delta?: number; totalAdded?: number } = {}
+  if (result.triggers.includes('absent_14')) {
+    const items = await adapter.getItems({ type: ['content'] })
+    const cutoff = settings.lastOpenedAt ?? Date.now()
+    const newItems = items.filter((i) => i.savedAt > cutoff)
+    summary = { totalAdded: newItems.length }
+    // 找增长最多的 cluster
+    if (newItems.length > 0) {
+      const counts: Record<string, number> = {}
+      for (const i of newItems) {
+        const c = i.cluster ?? '未分类'
+        counts[c] = (counts[c] ?? 0) + 1
+      }
+      const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
+      if (top && top[1] >= 3) {
+        summary.topCluster = top[0]
+        summary.delta = top[1]
+      }
+    }
+  }
+
+  let updatedFired = fired
+  for (const trigger of result.triggers) {
+    const { title, message } =
+      trigger === 'absent_14'
+        ? RecallService.buildRecall14Message(summary)
+        : RecallService.buildRecall30Message()
+    await chrome.notifications.create(`recall_${trigger}_${Date.now()}`, {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('assets/icon-128.png'),
+      title,
+      message,
+    })
+    updatedFired = RecallService.recordFired(updatedFired, trigger)
+    console.log(`[Chord] recall fired: ${trigger} (${result.daysAbsent.toFixed(1)} days absent)`)
+  }
+  await setRecallFired(updatedFired)
+}
+
+// ─── Phase 5: Milestone 检测 ──────────────────────────────────
+
+async function getMilestoneFired(): Promise<MilestoneFiredLog> {
+  const data = await chrome.storage.local.get('chord_milestones_fired')
+  return (data['chord_milestones_fired'] as MilestoneFiredLog | undefined) ?? {}
+}
+async function setMilestoneFired(log: MilestoneFiredLog): Promise<void> {
+  await chrome.storage.local.set({ chord_milestones_fired: log })
+}
+
+/**
+ * 在 item 数 / 处理数 / streak 任意变化后调用。
+ * 自动检测是否跨越 milestone 阈值并发通知。
+ */
+async function checkMilestones(input: import('@chord/core').MilestoneInput) {
+  try {
+    const settings = await adapter.getSettings()
+    const notif = settings.notifications ?? DEFAULT_NOTIFICATIONS
+    if (!notif.milestone) return
+    if (notif.muteUntil && notif.muteUntil > Date.now()) return
+
+    const fired = await getMilestoneFired()
+    const ms = MilestoneService.evaluate(input, fired)
+    if (ms.length === 0) return
+
+    let updatedFired = fired
+    for (const m of ms) {
+      await chrome.notifications.create(`milestone_${m.id}`, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('assets/icon-128.png'),
+        title: m.title,
+        message: m.message,
+      })
+      updatedFired = MilestoneService.recordFired(updatedFired, m.id)
+      console.log(`[Chord] milestone fired: ${m.id}`)
+    }
+    await setMilestoneFired(updatedFired)
+  } catch (e) {
+    console.warn('[Chord] milestone check failed:', e)
+  }
+}
+
+// 监听 storage 变化，检测 milestone（items_* 和 processed_*）
+let lastMilestoneSnapshot: { items: number; processed: number; streak: number } | null = null
+chrome.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName !== 'local') return
+  if (!changes['chord_items'] && !changes['chord_settings']) return
+
+  const items = await adapter.getItems({ type: ['content'] })
+  const settings = await adapter.getSettings()
+  const total = items.length
+  const processed = items.filter((i) => i.status === 'kept' || i.status === 'released').length
+  const streak = settings.streakCount ?? 0
+
+  if (!lastMilestoneSnapshot) {
+    lastMilestoneSnapshot = { items: total, processed, streak }
+    return
+  }
+  const prev = lastMilestoneSnapshot
+  lastMilestoneSnapshot = { items: total, processed, streak }
+
+  if (prev.items !== total || prev.processed !== processed || prev.streak !== streak) {
+    await checkMilestones({
+      prevItemsTotal: prev.items,
+      currentItemsTotal: total,
+      prevProcessed: prev.processed,
+      currentProcessed: processed,
+      prevStreak: prev.streak,
+      currentStreak: streak,
+    })
+  }
+})
+
+// ═══════════════ SaveIntent v2 · Sprint A.3 异步意图补救 ═══════════════
+
+const INTENT_BATCH_ALARM = 'chord_classify_intents'
+
+async function ensureIntentBatchAlarm() {
+  const existing = await chrome.alarms.get(INTENT_BATCH_ALARM)
+  if (existing) return
+  // 每小时一次，首次延迟 15 分钟（让 install/startup 顺利完成）
+  await chrome.alarms.create(INTENT_BATCH_ALARM, {
+    delayInMinutes: 15,
+    periodInMinutes: 60,
+  })
+}
+
+/**
+ * 异步批量补判 saveIntentSource='unknown' 的 item
+ * 触发：每小时 alarm
+ * 限制：每次最多 60 条（控制 AI 预算）
+ *
+ * 这是 Sprint A.3 "AI 同步调失败 fallback" 的兜底链路：
+ * - saveItem 同步调超时（2s）→ status='unknown'
+ * - 1 小时内 alarm 触发 → 批量调 AI 补判
+ */
+async function classifyUnknownIntentsAsync() {
+  const settings = await adapter.getSettings()
+  if (settings.aiEngine.mode !== 'ai') {
+    // 用户没开 AI → 跳过（unknown 状态保留，下游降级处理）
+    return
+  }
+  const engine = buildEngine(settings.aiEngine)
+  if (!engine.classifyIntents) return
+
+  const updated = await ItemService.classifyUnknownIntentsWithAI(adapter, engine, { limit: 60 })
+  if (updated > 0) {
+    console.log(`[Chord] intent batch补判: 更新 ${updated} 条 unknown item`)
+  }
+}

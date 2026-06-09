@@ -1,0 +1,7 @@
+# 历次评测报告不进 git（保留 baseline.json）
+eval-reports/*.md
+eval-reports/*.json
+!eval-reports/baseline.json
+
+# 本地中间产物（seed 等含用户数据的临时文件）
+.local/

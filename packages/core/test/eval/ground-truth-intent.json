@@ -1,0 +1,41 @@
+{
+  "version": "1.1",
+  "description": "SaveIntent 分类 ground truth（人工标注）。运行：pnpm --filter @chord/core test src/ai/SaveIntentClassifier.eval.test.ts",
+  "lastUpdated": "2026-05-18",
+  "notes": "三种 case 形式：(1) label=<intent> 正向断言；(2) label=null 规则不应判出（留 AI 兜底）；(3) must_not=<intent> 仅断言不该判到这一类，其他都行（用于 BC-012 类语义边界）",
+  "cases": [
+    { "id": "tool-1", "title": "Vite 配置指南", "url": "https://vitejs.dev/config/", "domain": "vitejs.dev", "label": "tool" },
+    { "id": "tool-2", "title": "React Hooks 文档", "url": "https://react.dev/reference/react", "domain": "react.dev", "label": "tool" },
+    { "id": "tool-3", "title": "vue3-form-validate 仓库", "url": "https://github.com/x/y", "domain": "github.com", "label": "tool" },
+    { "id": "tool-4", "title": "Stack Overflow 问题", "url": "https://stackoverflow.com/q/123", "domain": "stackoverflow.com", "label": "tool" },
+    { "id": "tool-5", "title": "Cursor AI 提示词工作流", "url": "https://example.com/x", "domain": "example.com", "label": "tool" },
+    { "id": "tool-6", "title": "Python 自动化攻略", "url": "https://example.com/auto", "domain": "example.com", "label": "tool" },
+
+    { "id": "learn-1", "title": "深入理解 Transformer 原理", "url": "https://example.com/t", "domain": "example.com", "label": "learn" },
+    { "id": "learn-2", "title": "讲透 React Fiber 内部实现", "url": "https://example.com/f", "domain": "example.com", "label": "learn" },
+    { "id": "learn-3", "title": "从零开始学 Rust 入门", "url": "https://example.com/r", "domain": "example.com", "label": "learn" },
+
+    { "id": "aspire-1", "title": "Vibe Coding 月入十万", "url": "https://example.com/v", "domain": "example.com", "label": "aspire" },
+    { "id": "aspire-2", "title": "数字游民如何 FIRE 退休", "url": "https://example.com/dn", "domain": "example.com", "label": "aspire" },
+    { "id": "aspire-3", "title": "副业月入 5 万", "url": "https://example.com/side", "domain": "example.com", "label": "aspire" },
+    { "id": "aspire-4", "title": "普通人也能做的 AI 提示词副业", "url": "https://example.com/x", "domain": "example.com", "label": "aspire" },
+
+    { "id": "inspire-1", "title": "关于孤独的随笔", "url": "https://example.com/lonely", "domain": "example.com", "label": "inspire" },
+    { "id": "inspire-2", "title": "一封写给十年前自己的信", "url": "https://example.com/letter", "domain": "example.com", "label": "inspire" },
+    { "id": "inspire-3", "title": "温柔的诗", "url": "https://mp.weixin.qq.com/s/x", "domain": "mp.weixin.qq.com", "label": "inspire" },
+
+    { "id": "track-1", "title": "TechCrunch AI 周报", "url": "https://techcrunch.com/x", "domain": "techcrunch.com", "label": "track" },
+    { "id": "track-2", "title": "36 氪每日早报", "url": "https://36kr.com/x", "domain": "36kr.com", "label": "track" },
+    { "id": "track-3", "title": "Twitter 趋势盘点", "url": "https://twitter.com/x", "domain": "twitter.com", "label": "track" },
+    { "id": "track-4", "title": "小红书每日热门", "url": "https://xiaohongshu.com/x", "domain": "xiaohongshu.com", "label": "track" },
+    { "id": "track-5", "title": "2026 大模型 Agent 回顾", "url": "https://example.com/x", "domain": "example.com", "label": "track" },
+    { "id": "track-6", "title": "Bilibili 热门视频盘点", "url": "https://bilibili.com/x", "domain": "bilibili.com", "label": "track" },
+
+    { "id": "bc012-1", "title": "蔚来班车信息全览", "url": "https://mp.weixin.qq.com/s/x", "domain": "mp.weixin.qq.com", "must_not": "inspire", "notes": "BC-012 同款：mp.weixin.qq.com 上的非情感共鸣类内容不该被错归 inspire" },
+    { "id": "bc012-2", "title": "字节员工福利政策", "url": "https://mp.weixin.qq.com/s/y", "domain": "mp.weixin.qq.com", "must_not": "inspire", "notes": "BC-012：内含 negative pattern「福利」" },
+    { "id": "bc012-3", "title": "孤独", "url": "https://example.com/x", "domain": "example.com", "label": null, "notes": "裸字不该判 inspire（v2 移除裸字 pattern）" },
+    { "id": "bc012-4", "title": "为什么", "url": "https://example.com/y", "domain": "example.com", "label": null, "notes": "裸「为什么」不该判 learn（v2 移除）" },
+    { "id": "bc012-5", "title": "JD：高级前端工程师", "url": "https://mp.weixin.qq.com/s/jd", "domain": "mp.weixin.qq.com", "must_not": "inspire", "notes": "JD 不该判 inspire（即使域名是 mp.weixin.qq.com）" },
+    { "id": "bc012-6", "title": "Medium: 教程 - 配置 nginx", "url": "https://medium.com/x", "domain": "medium.com", "must_not": "inspire", "notes": "medium + 教程/配置 negative → 不该判 inspire（判 tool 是合理的）" }
+  ]
+}

@@ -1,0 +1,6 @@
+# 包含用户完整标题+域名的原始数据，不进 git
+# 详见本目录 README.md「为什么部分文件 gitignored」段
+*-open-clustering-clusters.json
+*-open-clustering-report.md
+*-ground-truth-seed.json
+*-ground-truth-seed.md

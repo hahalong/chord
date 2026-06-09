@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=320"/>
+  <title>Chord 动效预览</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&family=DM+Serif+Display:ital@0;1&family=Source+Serif+4:ital@0;1&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --rose:#D9706A; --rose-lt:#FDF0EF; --rose-md:#F5C0BE;
+      --lav:#9CA3D4;  --lav-lt:#EEEEF8;
+      --text:#2A1520; --text-md:#7A5560; --text-lt:#B89098;
+      --bg:#FFFCFA;   --card:#FFFFFF;
+      --border:#F0E0DF; --border2:#E8D8D6;
+      --grad:linear-gradient(90deg,#F5C0BE 0%,#C8B8D8 50%,#A8C8E0 100%);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);font-family:'DM Sans','Noto Sans SC',sans-serif;padding:20px;width:360px}
+    h1{font-family:'DM Serif Display',serif;font-size:20px;color:var(--text);margin-bottom:4px}
+    .grad-bar{height:3px;background:var(--grad);margin-bottom:16px;border-radius:2px}
+    .demo-section{margin-bottom:24px}
+    .demo-label{font-size:11px;color:var(--text-lt);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+
+    /* Card */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;position:relative;overflow:hidden}
+    .item-meta{display:flex;align-items:center;gap:5px;margin-bottom:6px}
+    .item-domain{font-size:11px;color:var(--text-lt)}
+    .item-age{font-size:11px;color:var(--text-lt)}
+    .item-dot{font-size:11px;color:var(--border2)}
+    .item-title{font-size:14px;font-weight:500;line-height:1.4;margin-bottom:10px;color:var(--text)}
+    .item-question{font-family:'Source Serif 4',serif;font-style:italic;font-size:13px;line-height:1.6;color:var(--text-md);margin-bottom:12px;padding-left:10px;border-left:2px solid var(--rose-md)}
+
+    /* Buttons */
+    .action-row{display:flex;gap:7px}
+    .act-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 4px;border-radius:9px;border:1.5px solid var(--border2);background:var(--card);color:var(--text-md);font-size:12px;font-family:inherit;cursor:pointer;transition:border-color 200ms,color 200ms,background 200ms;position:relative;overflow:hidden}
+    .act-btn svg{flex-shrink:0}
+    .keep-btn:hover{border-color:var(--lav);color:var(--lav);background:var(--lav-lt)}
+    .used-btn:hover{border-color:#5AB870;color:#5AB870;background:#F0FAF2}
+    .release-btn:hover{border-color:var(--rose);color:var(--rose);background:var(--rose-lt)}
+
+    /* Animations */
+    @keyframes pin-stamp{
+      0%  {transform:scale(1) translateY(0)}
+      28% {transform:scale(1.12) translateY(-5px)}
+      55% {transform:scale(0.95) translateY(2px)}
+      75% {transform:scale(1.04) translateY(-1px)}
+      100%{transform:scale(1) translateY(0)}
+    }
+    @keyframes used-tick{
+      0%  {transform:scale(1) rotate(0deg)}
+      20% {transform:scale(1.10) rotate(-5deg)}
+      45% {transform:scale(1.13) rotate(4deg)}
+      68% {transform:scale(1.05) rotate(-1.5deg)}
+      100%{transform:scale(1) rotate(0deg)}
+    }
+    @keyframes ripple-expand{
+      from{transform:scale(1);opacity:.65}
+      to  {transform:scale(3.8);opacity:0}
+    }
+    .anim-keep{animation:pin-stamp 600ms ease forwards;border-color:var(--lav)!important;color:var(--lav)!important;background:var(--lav-lt)!important}
+    .anim-used{animation:used-tick 600ms ease forwards;border-color:#5AB870!important;color:#5AB870!important;background:#F0FAF2!important}
+    .chord-ripple{position:absolute;inset:0;border-radius:inherit;border:1.5px solid #5AB870;opacity:.65;animation:ripple-expand 600ms ease forwards}
+
+    /* Release confirm */
+    .release-confirm{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 0 4px}
+    .release-msg{font-size:12px;color:var(--text-lt)}
+
+    /* Sakura canvas */
+    .sakura-canvas{position:absolute;inset:0;pointer-events:none;display:none;z-index:10}
+
+    /* Chips */
+    .chips-area{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+    .chips-label{font-size:11px;color:var(--text-lt);margin-bottom:6px}
+    .chips-row{display:flex;flex-wrap:wrap;gap:5px}
+    .chip{padding:4px 9px;border-radius:20px;border:1px solid var(--border2);background:var(--bg);color:var(--text-md);font-size:11px;cursor:pointer;font-family:inherit;transition:all 150ms}
+    .chip:hover{border-color:var(--rose-md);color:var(--rose)}
+    .chip.chip-active{border-color:var(--rose);background:var(--rose-lt);color:var(--rose)}
+    .custom-input{margin-top:6px;width:100%;border:1px solid var(--border2);border-radius:7px;padding:6px 9px;font-size:12px;font-family:inherit;color:var(--text);background:var(--bg);outline:none}
+    .custom-input:focus{border-color:var(--rose-md)}
+
+    /* Status */
+    .status-row{margin-top:12px;font-size:11px;color:var(--text-lt);text-align:center}
+    .reset-btn{margin-top:8px;font-size:11px;color:var(--rose);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;display:block;margin-left:auto;margin-right:auto}
+
+    /* Streak */
+    .streak-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text-md);background:var(--rose-lt);padding:2px 8px;border-radius:20px}
+    .lib-status{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+    .lib-count{font-size:18px;font-weight:700;color:var(--rose);font-variant-numeric:tabular-nums}
+    .lib-label{font-size:11px;color:var(--text-lt)}
+  </style>
+</head>
+<body>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="icon-keep" viewBox="0 0 16 16" fill="none">
+    <path d="M4 2.5h8a.5.5 0 0 1 .5.5v8.19a.5.5 0 0 1-.81.39L8 9.06l-3.69 2.52A.5.5 0 0 1 3.5 11.19V3a.5.5 0 0 1 .5-.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="icon-used" viewBox="0 0 16 16" fill="none">
+    <path d="M3 8.5 6.2 12 13 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="icon-sakura" viewBox="0 0 16 16" fill="none">
+    <path d="M8 3c0 0-.9-1.5-2.3-1.1S4 3.8 4.5 5c.2.5.4.8.4.8S3 5.5 2.2 6.7 2 9.2 3.5 9.7c.5.2 1 .2 1 .2S3.7 11 4.2 12.3 6 14 7.3 13.5c.5-.2.7-.5.7-.5s.2.3.7.5c1.3.5 2.8-.1 3.2-1.7.2-.5.2-1.3.2-1.3s.5 0 1-.2c1.5-.5 1.8-2.2 1-3.3-.5-.6-1.7-.9-1.7-.9s.2-.3.4-.8c.5-1.2-.2-2.7-1.5-3.1C10.9 1.5 10 3 10 3c0 0-.4-.5-1-.5s-1 .5-1 .5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+    <circle cx="8" cy="8" r="1.2" fill="currentColor" opacity=".7"/>
+  </symbol>
+</svg>
+
+<div class="grad-bar"></div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+  <div style="display:flex;align-items:center;gap:6px">
+    <svg viewBox="0 0 120 100" fill="none" width="24" height="24">
+      <path d="M82 18 Q28 18 28 50 Q28 82 82 82" stroke="#D9706A" stroke-width="5" stroke-linecap="round"/>
+      <path d="M82 34 Q44 34 44 50 Q44 66 82 66" stroke="#D9706A" stroke-width="2.5" stroke-linecap="round" opacity="0.4"/>
+      <circle cx="87" cy="50" r="4" fill="#D9706A"/>
+      <circle cx="99" cy="50" r="2.8" fill="#D9706A" opacity="0.65"/>
+      <circle cx="109" cy="50" r="1.8" fill="#D9706A" opacity="0.35"/>
+    </svg>
+    <span style="font-family:'DM Serif Display',serif;font-size:16px;color:var(--text)">回响</span>
+  </div>
+  <div class="lib-status">
+    <span class="lib-count">12</span>
+    <span class="lib-label">条待处理</span>
+    <span class="streak-badge">
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="color:var(--rose)"><use href="#icon-sakura"/></svg>
+      连续 7 天
+    </span>
+  </div>
+</div>
+
+<!-- Main demo card -->
+<div class="card" id="main-card">
+  <canvas class="sakura-canvas" id="sakura-canvas" width="320" height="320"></canvas>
+  <div class="item-meta">
+    <span class="item-domain">sspai.com</span>
+    <span class="item-dot">·</span>
+    <span class="item-age">43 天前</span>
+  </div>
+  <h2 class="item-title">我为什么放弃了每日复盘，转而寻找更轻量的记录方式</h2>
+  <p class="item-question">你说要研究这种方式——43 天过去了，有没有真的用起来过哪怕一次？</p>
+
+  <div class="action-row" id="action-row">
+    <button id="btn-keep" class="act-btn keep-btn" onclick="handleKeep()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:var(--lav)"><use href="#icon-keep"/></svg>
+      留下来
+    </button>
+    <button id="btn-used" class="act-btn used-btn" onclick="handleUsed()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:#5AB870"><use href="#icon-used"/></svg>
+      用过了
+    </button>
+    <button id="btn-release" class="act-btn release-btn" onclick="handleRelease()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:var(--rose)"><use href="#icon-sakura"/></svg>
+      放手
+    </button>
+  </div>
+
+  <div id="chips-area" class="chips-area" style="display:none">
+    <p class="chips-label">派上用场了？</p>
+    <div class="chips-row" id="chips-row"></div>
+  </div>
+
+  <div id="release-confirm" class="release-confirm" style="display:none">
+    <svg width="44" height="44" viewBox="0 0 16 16" fill="none" style="color:var(--rose)"><use href="#icon-sakura"/></svg>
+    <p class="release-msg">已放手，轻盈一点了</p>
+  </div>
+
+  <div id="status-text" class="status-row" style="display:none"></div>
+  <button class="reset-btn" onclick="resetCard()" style="display:none" id="reset-btn">← 重新演示</button>
+</div>
+
+<script>
+const CHIPS = ['启发思路','实际用到了','分享出去了','仅此一读，够了','＋ 自己说']
+let decided = false
+let selectedChip = null
+
+function handleKeep() {
+  if (decided) return
+  decided = true
+  const btn = document.getElementById('btn-keep')
+  btn.classList.add('anim-keep')
+  showFloatText(btn, '📌 已保留', 'var(--lav)')
+  setTimeout(() => btn.classList.remove('anim-keep'), 700)
+  setTimeout(() => {
+    document.getElementById('action-row').style.display = 'none'
+    document.getElementById('status-text').textContent = '已保留，下次还会再响起'
+    document.getElementById('status-text').style.display = 'block'
+    document.getElementById('reset-btn').style.display = 'block'
+  }, 650)
+}
+
+function handleUsed() {
+  if (decided) return
+  decided = true
+  const btn = document.getElementById('btn-used')
+  btn.classList.add('anim-used')
+  showFloatText(btn, '✓ 太棒了', '#5AB870')
+  const ripple = document.createElement('span')
+  ripple.className = 'chord-ripple'
+  btn.appendChild(ripple)
+  setTimeout(() => { btn.classList.remove('anim-used'); ripple.remove() }, 700)
+  setTimeout(() => {
+    // show chips
+    const area = document.getElementById('chips-area')
+    const row = document.getElementById('chips-row')
+    row.innerHTML = ''
+    CHIPS.forEach(c => {
+      const chip = document.createElement('button')
+      chip.className = 'chip'
+      chip.textContent = c
+      if (c === '＋ 自己说') {
+        chip.onclick = () => {
+          chip.classList.toggle('chip-active')
+          const existing = document.getElementById('custom-input')
+          if (existing) { existing.remove(); return }
+          const inp = document.createElement('input')
+          inp.id = 'custom-input'
+          inp.className = 'custom-input'
+          inp.placeholder = '随便写，一句话就好'
+          area.appendChild(inp)
+          inp.focus()
+        }
+      } else {
+        chip.onclick = () => {
+          document.querySelectorAll('.chip').forEach(c2 => c2.classList.remove('chip-active'))
+          chip.classList.add('chip-active')
+          selectedChip = c
+        }
+      }
+      row.appendChild(chip)
+    })
+    area.style.display = 'block'
+    document.getElementById('reset-btn').style.display = 'block'
+  }, 500)
+}
+
+function handleRelease() {
+  if (decided) return
+  decided = true
+  const btn = document.getElementById('btn-release')
+  showFloatText(btn, '🌸 再见', 'var(--rose)')
+  runSakura()
+  setTimeout(() => {
+    document.getElementById('action-row').style.display = 'none'
+    document.getElementById('release-confirm').style.display = 'flex'
+    document.getElementById('reset-btn').style.display = 'block'
+  }, 600)
+}
+
+function resetCard() {
+  decided = false; selectedChip = null
+  document.getElementById('action-row').style.display = ''
+  document.getElementById('chips-area').style.display = 'none'
+  document.getElementById('release-confirm').style.display = 'none'
+  document.getElementById('status-text').style.display = 'none'
+  document.getElementById('reset-btn').style.display = 'none'
+  document.getElementById('chips-row').innerHTML = ''
+  const inp = document.getElementById('custom-input')
+  if (inp) inp.remove()
+  const canvas = document.getElementById('sakura-canvas')
+  canvas.style.display = 'none'
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0,0,canvas.width,canvas.height)
+  document.querySelectorAll('.act-btn').forEach(b => b.className = b.className.replace(/anim-\w+/g,'').trim())
+}
+
+// ── Float text ──────────────────────────────────────────────
+function showFloatText(anchor, text, color) {
+  const rect = anchor.getBoundingClientRect()
+  const el = document.createElement('span')
+  el.textContent = text
+  el.style.cssText = `position:fixed;left:${rect.left+rect.width/2}px;top:${rect.top}px;
+    transform:translate(-50%,0);font-size:12px;color:${color};
+    font-family:'DM Sans',sans-serif;pointer-events:none;z-index:9999;
+    opacity:1;transition:opacity 620ms cubic-bezier(.22,1,.36,1),transform 620ms cubic-bezier(.22,1,.36,1)`
+  document.body.appendChild(el)
+  requestAnimationFrame(() => {
+    el.style.opacity = '0'
+    el.style.transform = 'translate(-50%,-34px) scale(1.05)'
+  })
+  setTimeout(() => el.remove(), 640)
+}
+
+// ── Sakura canvas ──────────────────────────────────────────
+const SAKURA_COLORS = ['#FFB7C5','#FFC8D4','#FFD6E0','#F9A8B8','#FADADD','#FFE4EC','#fff','#F5E0E8']
+function runSakura() {
+  const canvas = document.getElementById('sakura-canvas')
+  canvas.style.display = 'block'
+  const ctx = canvas.getContext('2d')
+  const cx = canvas.width/2, cy = canvas.height/2
+  const petals = []
+  for (let i=0;i<45;i++) {
+    const angle = Math.random()*Math.PI*2
+    const speed = 1.5+Math.random()*3
+    petals.push({
+      x:cx,y:cy,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-1.5,
+      alpha:1,rot:Math.random()*Math.PI*2,rotV:(Math.random()-.5)*.15,
+      size:4+Math.random()*5,
+      color:SAKURA_COLORS[Math.floor(Math.random()*SAKURA_COLORS.length)],
+      wobble:Math.random()*Math.PI*2
+    })
+  }
+  let frame=0
+  function tick() {
+    ctx.clearRect(0,0,canvas.width,canvas.height)
+    for (const p of petals) {
+      p.x+=p.vx+Math.sin(p.wobble)*.4; p.y+=p.vy; p.vy+=.12
+      p.wobble+=.07; p.rot+=p.rotV; p.alpha-=.012
+      if (p.alpha<=0) continue
+      ctx.save(); ctx.globalAlpha=p.alpha
+      ctx.translate(p.x,p.y); ctx.rotate(p.rot)
+      drawPetal(ctx,p.size,p.color); ctx.restore()
+    }
+    frame++
+    if (frame<80) requestAnimationFrame(tick)
+    else canvas.style.display='none'
+  }
+  requestAnimationFrame(tick)
+}
+function drawPetal(ctx,r,color) {
+  ctx.fillStyle=color
+  for (let i=0;i<5;i++) {
+    ctx.save(); ctx.rotate(i/5*Math.PI*2)
+    ctx.beginPath(); ctx.ellipse(0,-r*.6,r*.35,r*.6,0,0,Math.PI*2); ctx.fill(); ctx.restore()
+  }
+  ctx.fillStyle='#FFF9A0'; ctx.beginPath(); ctx.arc(0,0,r*.2,0,Math.PI*2); ctx.fill()
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "@chord/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "eval:synthetic": "node test/eval/run-eval.mjs synthetic",
+    "eval:real": "node test/eval/run-eval.mjs real",
+    "chord:inspect": "node test/eval/inspect-user-storage.mjs",
+    "eval:user-storage": "node test/eval/inspect-user-storage.mjs --export && CHORD_EVAL_REAL_DATASET=/tmp/chord-user-snapshot.json node test/eval/run-eval.mjs real"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./services": "./src/services/index.ts",
+    "./storage": "./src/storage/index.ts",
+    "./ai": "./src/ai/index.ts",
+    "./classifier": "./src/classifier/index.ts",
+    "./events": "./src/events/index.ts"
+  },
+  "dependencies": {
+    "@chord/types": "workspace:*"
+  },
+  "devDependencies": {
+    "classic-level": "^1.4.1",
+    "vitest": "^2.1.8"
+  }
+}
