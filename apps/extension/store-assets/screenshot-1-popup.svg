@@ -73,7 +73,7 @@
       <!-- streak chip -->
       <g transform="translate(282, 12)">
         <rect x="0" y="0" width="96" height="36" rx="18" fill="#FDF0EF"/>
-        <text x="48" y="23" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" font-weight="600" fill="#D9706A" text-anchor="middle">🌸 17 天</text>
+        <text x="48" y="23" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" font-weight="600" fill="#D9706A" text-anchor="middle">连续 17 天</text>
       </g>
     </g>
 
@@ -126,13 +126,26 @@
       <!-- 二向决策按钮 (大) -->
       <g transform="translate(22, 296)">
         <rect x="0" y="0" width="172" height="64" rx="10" fill="#FFFFFF" stroke="#E8D8D6" stroke-width="1.5" filter="url(#softShadow)"/>
-        <text x="86" y="40" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="15" fill="#9CA3D4" text-anchor="middle" font-weight="600">
-          📌 留下来
+        <!-- 留下来 · 小 pin/bookmark SVG icon -->
+        <g transform="translate(40, 22)" stroke="#9CA3D4" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 1 L13 1 L13 14 L8 11 L3 14 Z"/>
+        </g>
+        <text x="100" y="40" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="15" fill="#9CA3D4" text-anchor="middle" font-weight="600">
+          留下来
         </text>
 
         <rect x="184" y="0" width="172" height="64" rx="10" fill="#FFFFFF" stroke="#E8D8D6" stroke-width="1.5" filter="url(#softShadow)"/>
-        <text x="270" y="40" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="15" fill="#D9706A" text-anchor="middle" font-weight="600">
-          🌸 放手
+        <!-- 放手 · 小樱花 SVG icon -->
+        <g transform="translate(220, 25)" fill="#D9706A">
+          <circle cx="6" cy="6" r="2.5"/>
+          <circle cx="0" cy="3" r="2.2" opacity="0.7"/>
+          <circle cx="12" cy="3" r="2.2" opacity="0.7"/>
+          <circle cx="2" cy="11" r="2.2" opacity="0.7"/>
+          <circle cx="10" cy="11" r="2.2" opacity="0.7"/>
+          <circle cx="6" cy="6" r="1" fill="#FFD700"/>
+        </g>
+        <text x="290" y="40" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="15" fill="#D9706A" text-anchor="middle" font-weight="600">
+          放手
         </text>
       </g>
     </g>

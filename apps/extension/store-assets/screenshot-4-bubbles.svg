@@ -90,7 +90,7 @@
       <circle cx="920" cy="155" r="58" fill="url(#emberBubble)" opacity="0.9" stroke="#E08070" stroke-width="2"/>
       <text x="920" y="155" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="16" font-weight="600" fill="#2A1520" text-anchor="middle">健身</text>
       <text x="920" y="178" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560" text-anchor="middle">5 · 80%</text>
-      <text x="920" y="118" font-family="'DM Mono',monospace" font-size="10" fill="#D97050" text-anchor="middle">🔥 新</text>
+      <text x="920" y="118" font-family="'DM Mono',monospace" font-size="10" letter-spacing="1" fill="#D97050" text-anchor="middle">EMBER</text>
     </g>
 
     <!-- 设计灵感 (sleep · 灰虚线) -->
@@ -98,7 +98,7 @@
       <circle cx="900" cy="370" r="52" fill="url(#sleepBubble)" opacity="0.7" stroke="#A0B0C0" stroke-width="1.5" stroke-dasharray="4,4"/>
       <text x="900" y="370" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="15" font-weight="600" fill="#2A1520" text-anchor="middle">设计灵感</text>
       <text x="900" y="391" font-family="'DM Mono',monospace" font-size="10" fill="#7A5560" text-anchor="middle">4 · 0%</text>
-      <text x="900" y="332" font-family="'DM Mono',monospace" font-size="10" fill="#7080A0" text-anchor="middle">🌙</text>
+      <text x="900" y="332" font-family="'DM Mono',monospace" font-size="10" letter-spacing="1" fill="#7080A0" text-anchor="middle">SLEEP</text>
     </g>
 
     <!-- 心理学 (中) -->
@@ -127,11 +127,11 @@
       <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#7A5560" dx="6">虚线 = 幻觉兴趣</tspan>
     </text>
     <text x="100" y="0" text-anchor="middle">
-      <tspan font-family="'DM Sans',sans-serif" font-size="13" fill="#E08070">🔥</tspan>
+      <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#E08070" font-weight="600">●</tspan>
       <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#7A5560" dx="6">新冒火苗</tspan>
     </text>
     <text x="280" y="0" text-anchor="middle">
-      <tspan font-family="'DM Sans',sans-serif" font-size="13" fill="#7080A0">🌙</tspan>
+      <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#7080A0" font-weight="600">●</tspan>
       <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#7A5560" dx="6">沉睡之地</tspan>
     </text>
   </g>
