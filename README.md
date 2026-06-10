@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/social-preview.png" alt="Chord · 回响 · 当收藏开始回应你" width="720">
+
 # Chord · 回响
 
 **当收藏开始回应你**
