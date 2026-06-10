@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Chord Store Screenshot 2 · §1 Chord Triad 三身份卡 · 1280 × 800 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" width="1280" height="800">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"  stop-color="#F5C0BE"/>
+      <stop offset="50%" stop-color="#C8B8D8"/>
+      <stop offset="100%" stop-color="#A8C8E0"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FDF0EF" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#FFFCFA" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cardCream" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFF8E8"/>
+      <stop offset="100%" stop-color="#FDF0DC"/>
+    </linearGradient>
+    <linearGradient id="cardLav" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EEEEF8"/>
+      <stop offset="100%" stop-color="#DCDCF0"/>
+    </linearGradient>
+    <linearGradient id="cardSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EEF6FC"/>
+      <stop offset="100%" stop-color="#D8E8F4"/>
+    </linearGradient>
+    <linearGradient id="centerWatercolor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F5E8DC"/>
+      <stop offset="40%" stop-color="#E8D8C0"/>
+      <stop offset="100%" stop-color="#D8C0A0"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+      <feOffset dx="0" dy="6" result="o"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.13"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="800" fill="#FFFCFA"/>
+  <rect width="1280" height="800" fill="url(#bgGlow)"/>
+  <rect x="0" y="0" width="1280" height="3" fill="url(#grad)"/>
+
+  <!-- 顶部 eyebrow 标签 + 标题 -->
+  <g transform="translate(640, 70)">
+    <text x="0" y="0" font-family="'DM Mono','SF Mono',monospace" font-size="12"
+          letter-spacing="4" fill="#D9706A" opacity="0.7" text-anchor="middle">
+      § 1 · 你是谁
+    </text>
+    <text x="0" y="40" font-family="'DM Serif Display','Noto Serif SC',serif"
+          font-size="34" fill="#2A1520" text-anchor="middle" letter-spacing="-0.3">
+      Chord Triad · 三和弦身份
+    </text>
+    <text x="0" y="72" font-family="'Source Serif 4','Noto Serif SC',serif"
+          font-size="17" font-style="italic" fill="#7A5560" text-anchor="middle">
+      27 种组合 · 你和内容关系的真实坐标
+    </text>
+  </g>
+
+  <!-- 三身份卡 horizontal layout -->
+  <!-- 左卡 HOARDER (消费风格) - 浅黄 -->
+  <g transform="translate(120, 250)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="280" height="380" rx="20" fill="url(#cardCream)" stroke="#E8D8C0" stroke-width="1"/>
+
+    <!-- 模拟身份卡 art (book + person silhouette) -->
+    <g transform="translate(40, 30)">
+      <rect x="0" y="0" width="200" height="200" rx="12" fill="#E8D0B0" opacity="0.6"/>
+      <!-- 简化的"书架前 silhouette"暗示 -->
+      <rect x="20" y="40" width="40" height="100" fill="#8A6040" opacity="0.4"/>
+      <rect x="65" y="50" width="40" height="90" fill="#A07050" opacity="0.4"/>
+      <rect x="110" y="35" width="40" height="105" fill="#704530" opacity="0.4"/>
+      <rect x="155" y="55" width="35" height="85" fill="#906050" opacity="0.4"/>
+      <!-- 人形 -->
+      <circle cx="100" cy="155" r="12" fill="#5A3A28" opacity="0.5"/>
+      <rect x="88" y="165" width="24" height="35" rx="3" fill="#5A3A28" opacity="0.5"/>
+    </g>
+
+    <text x="140" y="270" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13"
+          letter-spacing="2" fill="#7A5560" text-anchor="middle">消费风格</text>
+    <text x="140" y="306" font-family="'DM Serif Display',serif" font-size="32"
+          font-weight="700" fill="#2A1520" text-anchor="middle" letter-spacing="-0.5">HOARDER</text>
+    <text x="140" y="338" font-family="'DM Serif Display','Noto Serif SC',serif"
+          font-size="22" fill="#7A5560" text-anchor="middle">收藏家</text>
+  </g>
+
+  <!-- 中卡 RETURNER (心境) - 浅紫 -->
+  <g transform="translate(500, 250)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="280" height="380" rx="20" fill="url(#cardLav)" stroke="#C0C0E0" stroke-width="1"/>
+
+    <!-- art - garden/path 暗示 -->
+    <g transform="translate(40, 30)">
+      <rect x="0" y="0" width="200" height="200" rx="12" fill="#C0C0E0" opacity="0.5"/>
+      <!-- 房屋远景 -->
+      <polygon points="100,40 75,80 125,80" fill="#9080B0" opacity="0.5"/>
+      <rect x="80" y="80" width="40" height="35" fill="#7060A0" opacity="0.5"/>
+      <!-- 小路 -->
+      <path d="M 30 180 Q 100 160 170 110" stroke="#8080B0" stroke-width="6" fill="none" opacity="0.4"/>
+      <!-- 花 -->
+      <circle cx="50" cy="170" r="4" fill="#D8A0C0" opacity="0.7"/>
+      <circle cx="80" cy="155" r="3" fill="#D8A0C0" opacity="0.7"/>
+      <circle cx="135" cy="135" r="3" fill="#D8A0C0" opacity="0.7"/>
+    </g>
+
+    <text x="140" y="270" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13"
+          letter-spacing="2" fill="#7A5560" text-anchor="middle">心境</text>
+    <text x="140" y="306" font-family="'DM Serif Display',serif" font-size="32"
+          font-weight="700" fill="#2A1520" text-anchor="middle" letter-spacing="-0.5">RETURNER</text>
+    <text x="140" y="338" font-family="'DM Serif Display','Noto Serif SC',serif"
+          font-size="22" fill="#7A5560" text-anchor="middle">回归者</text>
+  </g>
+
+  <!-- 右卡 SPECIALIST (半径) - 浅蓝 -->
+  <g transform="translate(880, 250)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="280" height="380" rx="20" fill="url(#cardSky)" stroke="#A8C0D8" stroke-width="1"/>
+
+    <!-- art - 水彩地图 -->
+    <g transform="translate(40, 30)">
+      <rect x="0" y="0" width="200" height="200" rx="12" fill="url(#centerWatercolor)" opacity="0.7"/>
+      <!-- 主大陆/河流暗示 -->
+      <path d="M 20 60 Q 80 30 130 70 Q 180 100 170 160" fill="#C0E0D0" opacity="0.5"/>
+      <!-- 山 -->
+      <polygon points="60,140 80,100 100,140" fill="#B0C0D0" opacity="0.5"/>
+      <polygon points="120,150 145,110 170,150" fill="#A0B0C0" opacity="0.5"/>
+      <!-- 小树 -->
+      <circle cx="50" cy="100" r="6" fill="#6090A0" opacity="0.6"/>
+      <circle cx="155" cy="80" r="5" fill="#6090A0" opacity="0.6"/>
+    </g>
+
+    <text x="140" y="270" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13"
+          letter-spacing="2" fill="#7A5560" text-anchor="middle">半径</text>
+    <text x="140" y="306" font-family="'DM Serif Display',serif" font-size="32"
+          font-weight="700" fill="#2A1520" text-anchor="middle" letter-spacing="-0.5">SPECIALIST</text>
+    <text x="140" y="338" font-family="'DM Serif Display','Noto Serif SC',serif"
+          font-size="22" fill="#7A5560" text-anchor="middle">专精派</text>
+  </g>
+
+  <!-- 底部 narrative · 跨三卡 -->
+  <g transform="translate(640, 690)">
+    <text x="0" y="0" font-family="'DM Mono',monospace" font-size="11" letter-spacing="3"
+          fill="#D9706A" opacity="0.7" text-anchor="middle">CHORD TRIAD · HRP</text>
+    <text x="0" y="28" font-family="'Source Serif 4','Noto Serif SC',serif" font-size="16"
+          font-style="italic" fill="#2A1520" text-anchor="middle">
+      你存了 168 条 · 真正在用的只有 1/3 · 而那 1/3 几乎都在投资这一个主题。
+    </text>
+  </g>
+
+  <!-- 三和弦连接线 -->
+  <line x1="400" y1="440" x2="500" y2="440" stroke="#D9706A" stroke-width="1.5" opacity="0.3" stroke-dasharray="3,3"/>
+  <line x1="780" y1="440" x2="880" y2="440" stroke="#D9706A" stroke-width="1.5" opacity="0.3" stroke-dasharray="3,3"/>
+  <text x="450" y="437" font-family="'DM Mono',monospace" font-size="20" font-weight="600" fill="#D9706A" opacity="0.4" text-anchor="middle">×</text>
+  <text x="830" y="437" font-family="'DM Mono',monospace" font-size="20" font-weight="600" fill="#D9706A" opacity="0.4" text-anchor="middle">×</text>
+
+  <!-- 底部 caption -->
+  <text x="640" y="780" font-family="'DM Mono','SF Mono',monospace" font-size="11" letter-spacing="3"
+        fill="#B89098" text-anchor="middle">
+    HIDDEN SELF · § 1 OF 6
+  </text>
+</svg>

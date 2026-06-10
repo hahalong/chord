@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Chord Store Screenshot 4 · 兴趣地形 · 1280 × 800 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" width="1280" height="800">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"  stop-color="#F5C0BE"/>
+      <stop offset="50%" stop-color="#C8B8D8"/>
+      <stop offset="100%" stop-color="#A8C8E0"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#FDF0EF" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#FFFCFA" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="forestBubble" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FFF0EE"/>
+      <stop offset="100%" stop-color="#F5C0BE"/>
+    </radialGradient>
+    <radialGradient id="swampBubble" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#F0F0F8"/>
+      <stop offset="100%" stop-color="#C8B8D8"/>
+    </radialGradient>
+    <radialGradient id="emberBubble" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FFEEE6"/>
+      <stop offset="100%" stop-color="#F5A88E"/>
+    </radialGradient>
+    <radialGradient id="sleepBubble" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#F0F4F8"/>
+      <stop offset="100%" stop-color="#C0CCD8"/>
+    </radialGradient>
+    <radialGradient id="midBubble" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FFF8F0"/>
+      <stop offset="100%" stop-color="#F0D8C0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="800" fill="#FFFCFA"/>
+  <rect width="1280" height="800" fill="url(#bgGlow)"/>
+  <rect x="0" y="0" width="1280" height="3" fill="url(#grad)"/>
+
+  <!-- 标题 -->
+  <g transform="translate(640, 70)">
+    <text x="0" y="0" font-family="'DM Mono','SF Mono',monospace" font-size="12"
+          letter-spacing="4" fill="#D9706A" opacity="0.7" text-anchor="middle">
+      INTEREST TERRAIN · 兴趣地形
+    </text>
+    <text x="0" y="40" font-family="'DM Serif Display','Noto Serif SC',serif"
+          font-size="34" fill="#2A1520" text-anchor="middle" letter-spacing="-0.3">
+      你在乎什么 · 一眼看清
+    </text>
+    <text x="0" y="72" font-family="'Source Serif 4','Noto Serif SC',serif"
+          font-size="17" font-style="italic" fill="#7A5560" text-anchor="middle">
+      泡泡越大你越关注 · 实线是真热情 · 虚线是幻觉
+    </text>
+  </g>
+
+  <!-- 气泡画布 -->
+  <g transform="translate(140, 180)">
+    <!-- 投资 (forest · 最大 · 实线) -->
+    <g>
+      <circle cx="280" cy="220" r="135" fill="url(#forestBubble)" opacity="0.85" stroke="#D9706A" stroke-width="2"/>
+      <text x="280" y="210" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="22" font-weight="600" fill="#2A1520" text-anchor="middle">投资与</text>
+      <text x="280" y="240" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="22" font-weight="600" fill="#2A1520" text-anchor="middle">金融市场</text>
+      <text x="280" y="266" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560" text-anchor="middle">40 · 75%</text>
+    </g>
+
+    <!-- AI 工具 (中 · 中间态) -->
+    <g>
+      <circle cx="555" cy="155" r="80" fill="url(#midBubble)" opacity="0.85" stroke="#C9A878" stroke-width="1.5" stroke-dasharray="0"/>
+      <text x="555" y="155" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="18" font-weight="600" fill="#2A1520" text-anchor="middle">AI 工具</text>
+      <text x="555" y="180" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560" text-anchor="middle">12 · 30%</text>
+    </g>
+
+    <!-- 编程 (forest 实线) -->
+    <g>
+      <circle cx="750" cy="280" r="70" fill="url(#forestBubble)" opacity="0.85" stroke="#D9706A" stroke-width="2"/>
+      <text x="750" y="280" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="18" font-weight="600" fill="#2A1520" text-anchor="middle">编程</text>
+      <text x="750" y="304" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560" text-anchor="middle">10 · 65%</text>
+    </g>
+
+    <!-- 旧学英语 (swamp · 虚线) -->
+    <g>
+      <circle cx="540" cy="340" r="92" fill="url(#swampBubble)" opacity="0.8" stroke="#9CA3D4" stroke-width="2" stroke-dasharray="6,4"/>
+      <text x="540" y="335" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="18" font-weight="600" fill="#2A1520" text-anchor="middle">旧学英语</text>
+      <text x="540" y="356" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="14" fill="#7A5560" text-anchor="middle">方法</text>
+      <text x="540" y="377" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560" text-anchor="middle">12 · 4%</text>
+    </g>
+
+    <!-- 健身 (ember · 渐变发光) -->
+    <g>
+      <circle cx="920" cy="155" r="58" fill="url(#emberBubble)" opacity="0.9" stroke="#E08070" stroke-width="2"/>
+      <text x="920" y="155" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="16" font-weight="600" fill="#2A1520" text-anchor="middle">健身</text>
+      <text x="920" y="178" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560" text-anchor="middle">5 · 80%</text>
+      <text x="920" y="118" font-family="'DM Mono',monospace" font-size="10" fill="#D97050" text-anchor="middle">🔥 新</text>
+    </g>
+
+    <!-- 设计灵感 (sleep · 灰虚线) -->
+    <g>
+      <circle cx="900" cy="370" r="52" fill="url(#sleepBubble)" opacity="0.7" stroke="#A0B0C0" stroke-width="1.5" stroke-dasharray="4,4"/>
+      <text x="900" y="370" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="15" font-weight="600" fill="#2A1520" text-anchor="middle">设计灵感</text>
+      <text x="900" y="391" font-family="'DM Mono',monospace" font-size="10" fill="#7A5560" text-anchor="middle">4 · 0%</text>
+      <text x="900" y="332" font-family="'DM Mono',monospace" font-size="10" fill="#7080A0" text-anchor="middle">🌙</text>
+    </g>
+
+    <!-- 心理学 (中) -->
+    <g>
+      <circle cx="100" cy="370" r="48" fill="url(#midBubble)" opacity="0.85" stroke="#C9A878" stroke-width="1.5"/>
+      <text x="100" y="370" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="15" font-weight="600" fill="#2A1520" text-anchor="middle">心理学</text>
+      <text x="100" y="390" font-family="'DM Mono',monospace" font-size="10" fill="#7A5560" text-anchor="middle">3 · 33%</text>
+    </g>
+
+    <!-- 创业研究 (小) -->
+    <g>
+      <circle cx="80" cy="150" r="38" fill="url(#midBubble)" opacity="0.85" stroke="#C9A878" stroke-width="1.5"/>
+      <text x="80" y="150" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="12" font-weight="600" fill="#2A1520" text-anchor="middle">创业</text>
+      <text x="80" y="168" font-family="'DM Mono',monospace" font-size="10" fill="#7A5560" text-anchor="middle">2</text>
+    </g>
+  </g>
+
+  <!-- 底部 legend -->
+  <g transform="translate(640, 720)">
+    <text x="-280" y="0" text-anchor="middle">
+      <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#D9706A" font-weight="600">●</tspan>
+      <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#7A5560" dx="6">实线 = 真实热情</tspan>
+    </text>
+    <text x="-100" y="0" text-anchor="middle">
+      <tspan font-family="'DM Sans',sans-serif" font-size="13" fill="#9CA3D4" font-weight="600">○</tspan>
+      <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#7A5560" dx="6">虚线 = 幻觉兴趣</tspan>
+    </text>
+    <text x="100" y="0" text-anchor="middle">
+      <tspan font-family="'DM Sans',sans-serif" font-size="13" fill="#E08070">🔥</tspan>
+      <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#7A5560" dx="6">新冒火苗</tspan>
+    </text>
+    <text x="280" y="0" text-anchor="middle">
+      <tspan font-family="'DM Sans',sans-serif" font-size="13" fill="#7080A0">🌙</tspan>
+      <tspan font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="13" fill="#7A5560" dx="6">沉睡之地</tspan>
+    </text>
+  </g>
+
+  <text x="640" y="780" font-family="'DM Mono','SF Mono',monospace" font-size="11" letter-spacing="3"
+        fill="#B89098" text-anchor="middle">
+    INTEREST TERRAIN · CLICK A BUBBLE TO RELEASE OR EXPLORE
+  </text>
+</svg>

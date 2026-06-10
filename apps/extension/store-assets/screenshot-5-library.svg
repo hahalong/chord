@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Chord Store Screenshot 5 · 候响室 · 1280 × 800 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" width="1280" height="800">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"  stop-color="#F5C0BE"/>
+      <stop offset="50%" stop-color="#C8B8D8"/>
+      <stop offset="100%" stop-color="#A8C8E0"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FDF0EF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FFFCFA" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pulseRing">
+      <stop offset="0%" stop-color="#D9706A" stop-opacity="0"/>
+      <stop offset="60%" stop-color="#D9706A" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#D9706A" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="cardShadow">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6"/>
+      <feOffset dx="0" dy="3"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.08"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="800" fill="#FFFCFA"/>
+  <rect width="1280" height="800" fill="url(#bgGlow)"/>
+  <rect x="0" y="0" width="1280" height="3" fill="url(#grad)"/>
+
+  <!-- 标题 -->
+  <g transform="translate(640, 70)">
+    <text x="0" y="0" font-family="'DM Mono','SF Mono',monospace" font-size="12"
+          letter-spacing="4" fill="#D9706A" opacity="0.7" text-anchor="middle">
+      LIBRARY · 候响室
+    </text>
+    <text x="0" y="40" font-family="'DM Serif Display','Noto Serif SC',serif"
+          font-size="34" fill="#2A1520" text-anchor="middle" letter-spacing="-0.3">
+      所有等你回去看的，都还在
+    </text>
+  </g>
+
+  <!-- 左侧 · 脉冲卡 -->
+  <g transform="translate(100, 200)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="380" height="500" rx="20" fill="#FFFFFF" stroke="#F0E0DF" stroke-width="1"/>
+
+    <!-- 呼吸脉冲圈 -->
+    <g transform="translate(190, 200)">
+      <circle r="110" fill="url(#pulseRing)" opacity="0.4"/>
+      <circle r="80" fill="url(#pulseRing)" opacity="0.6"/>
+      <circle r="55" fill="#FDF0EF" stroke="#F5C0BE" stroke-width="2"/>
+      <text x="0" y="-3" font-family="'DM Mono',monospace" font-size="48" font-weight="700" fill="#D9706A" text-anchor="middle">53</text>
+      <text x="0" y="22" font-family="'DM Sans','Noto Sans SC',sans-serif" font-size="12" fill="#7A5560" text-anchor="middle">条等你回响</text>
+    </g>
+
+    <!-- 副文案 -->
+    <text x="190" y="370" font-family="'Source Serif 4','Noto Serif SC',serif" font-size="18" font-style="italic" fill="#7A5560" text-anchor="middle">
+      都还在，不急
+    </text>
+
+    <!-- 本周节奏 7 天柱 -->
+    <g transform="translate(60, 410)">
+      <text x="130" y="-8" font-family="'DM Mono',monospace" font-size="10" letter-spacing="2" fill="#B89098" text-anchor="middle">本周节奏</text>
+      <g transform="translate(0, 0)">
+        <rect x="0"  y="20" width="22" height="36" rx="3" fill="#F5C0BE" opacity="0.7"/>
+        <rect x="30" y="14" width="22" height="42" rx="3" fill="#F5C0BE" opacity="0.7"/>
+        <rect x="60" y="46" width="22" height="10" rx="3" fill="#F5C0BE" opacity="0.4"/>
+        <rect x="90" y="30" width="22" height="26" rx="3" fill="#F5C0BE" opacity="0.7"/>
+        <rect x="120" y="2"  width="22" height="54" rx="3" fill="#D9706A" opacity="0.85"/>
+        <rect x="150" y="40" width="22" height="16" rx="3" fill="#F5C0BE" opacity="0.5"/>
+        <rect x="180" y="40" width="22" height="16" rx="3" fill="#F5C0BE" opacity="0.5"/>
+        <!-- 标签 -->
+        <text x="11" y="76" font-family="'DM Mono',monospace" font-size="10" fill="#B89098" text-anchor="middle">一</text>
+        <text x="41" y="76" font-family="'DM Mono',monospace" font-size="10" fill="#B89098" text-anchor="middle">二</text>
+        <text x="71" y="76" font-family="'DM Mono',monospace" font-size="10" fill="#B89098" text-anchor="middle">三</text>
+        <text x="101" y="76" font-family="'DM Mono',monospace" font-size="10" fill="#B89098" text-anchor="middle">四</text>
+        <text x="131" y="76" font-family="'DM Mono',monospace" font-size="10" font-weight="700" fill="#D9706A" text-anchor="middle">五</text>
+        <text x="161" y="76" font-family="'DM Mono',monospace" font-size="10" fill="#B89098" text-anchor="middle">六</text>
+        <text x="191" y="76" font-family="'DM Mono',monospace" font-size="10" fill="#B89098" text-anchor="middle">日</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- 右侧 · 队列 -->
+  <g transform="translate(530, 200)">
+    <text x="0" y="0" font-family="'DM Mono','SF Mono',monospace" font-size="11" letter-spacing="3" fill="#D9706A" opacity="0.7">
+      待响队列 · 按等待时长排
+    </text>
+
+    <!-- 队列条目 5 个 -->
+    <g transform="translate(0, 30)" filter="url(#cardShadow)">
+      <!-- 1 -->
+      <g transform="translate(0, 0)">
+        <rect x="0" y="0" width="640" height="80" rx="12" fill="#FFFFFF" stroke="#F0E0DF" stroke-width="1"/>
+        <rect x="0" y="0" width="4" height="80" rx="2" fill="#7BC97B"/>
+        <rect x="16" y="20" width="14" height="14" rx="3" fill="#E8D8D6"/>
+        <text x="38" y="32" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">medium.com</text>
+        <text x="16" y="56" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#2A1520">How to Read a Paper · 系统的思维</text>
+        <text x="610" y="46" font-family="'DM Mono',monospace" font-size="11" fill="#7BC97B" text-anchor="end">8 天</text>
+      </g>
+
+      <!-- 2 -->
+      <g transform="translate(0, 92)">
+        <rect x="0" y="0" width="640" height="80" rx="12" fill="#FFFFFF" stroke="#F0E0DF" stroke-width="1"/>
+        <rect x="0" y="0" width="4" height="80" rx="2" fill="#7BC97B"/>
+        <rect x="16" y="20" width="14" height="14" rx="3" fill="#E8D8D6"/>
+        <text x="38" y="32" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">anthropic.com</text>
+        <text x="16" y="56" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#2A1520">Anthropic blog · Claude 4 sonnet</text>
+        <text x="610" y="46" font-family="'DM Mono',monospace" font-size="11" fill="#7BC97B" text-anchor="end">23 天</text>
+      </g>
+
+      <!-- 3 -->
+      <g transform="translate(0, 184)">
+        <rect x="0" y="0" width="640" height="80" rx="12" fill="#FFFFFF" stroke="#F0E0DF" stroke-width="1"/>
+        <rect x="0" y="0" width="4" height="80" rx="2" fill="#9CA3D4"/>
+        <rect x="16" y="20" width="14" height="14" rx="3" fill="#E8D8D6"/>
+        <text x="38" y="32" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">zhuanlan.zhihu.com</text>
+        <text x="16" y="56" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#2A1520">学英语 21 天速成法</text>
+        <text x="610" y="46" font-family="'DM Mono',monospace" font-size="11" fill="#9CA3D4" text-anchor="end">4 个月</text>
+      </g>
+
+      <!-- 4 -->
+      <g transform="translate(0, 276)">
+        <rect x="0" y="0" width="640" height="80" rx="12" fill="#FFFFFF" stroke="#F0E0DF" stroke-width="1"/>
+        <rect x="0" y="0" width="4" height="80" rx="2" fill="#E6A060"/>
+        <rect x="16" y="20" width="14" height="14" rx="3" fill="#E8D8D6"/>
+        <text x="38" y="32" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">designshack.net</text>
+        <text x="16" y="56" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#2A1520">那本被我忘掉的设计书</text>
+        <text x="610" y="46" font-family="'DM Mono',monospace" font-size="11" fill="#E6A060" text-anchor="end">6 个月</text>
+      </g>
+
+      <!-- 5 · 超期 红色 -->
+      <g transform="translate(0, 368)">
+        <rect x="0" y="0" width="640" height="80" rx="12" fill="#FFFFFF" stroke="#F0E0DF" stroke-width="1"/>
+        <rect x="0" y="0" width="4" height="80" rx="2" fill="#D9706A"/>
+        <rect x="16" y="20" width="14" height="14" rx="3" fill="#E8D8D6"/>
+        <text x="38" y="32" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">36kr.com</text>
+        <text x="16" y="56" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#2A1520">2024 旧文 · 副业选择指南</text>
+        <text x="610" y="46" font-family="'DM Mono',monospace" font-size="11" font-weight="600" fill="#D9706A" text-anchor="end">1 年 2 个月</text>
+      </g>
+    </g>
+  </g>
+
+  <text x="640" y="780" font-family="'DM Mono','SF Mono',monospace" font-size="11" letter-spacing="3"
+        fill="#B89098" text-anchor="middle">
+    LIBRARY · WAITING QUEUE · COLOR = AGE
+  </text>
+</svg>
