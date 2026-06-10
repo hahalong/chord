@@ -39,7 +39,7 @@ node test/eval/seed-ground-truth.mjs      # 重生成 ground-truth-seed
 # 旧版输出在 /tmp，新版应输出到 test/eval/.local/（待 mjs 改）
 ```
 
-**方案 2**：找 heyrain 要这 4 个文件本地副本。
+**方案 2**：找项目维护者要这 4 个文件本地副本。
 
 ---
 

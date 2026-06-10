@@ -1,7 +1,9 @@
 // L1 验证：用预定义大类做"N 选 1"分类，对比开放聚类
 import { readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
-const EXPORT_PATH = process.argv[2] ?? '/Users/heyrain/Downloads/chord-export-2026-05-14.json'
+const EXPORT_PATH = process.argv[2] ?? join(homedir(), 'Downloads', 'chord-export-2026-05-14.json')
 const ENV = readFileSync('apps/extension/.env.local', 'utf8')
 const KEY = ENV.match(/VITE_CHORD_BUNDLED_AI_KEY=(.+)/)[1].trim()
 const ENDPOINT = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
