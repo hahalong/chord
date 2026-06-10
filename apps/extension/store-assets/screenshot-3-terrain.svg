@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Chord Store Screenshot 3 · §3 Terrain · 1280 × 800 -->
+<!-- Chord Store Screenshot 3 · §3 Terrain · 1280 × 800 · 每块带水彩 art -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" width="1280" height="800">
   <defs>
     <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
@@ -12,30 +12,69 @@
       <stop offset="100%" stop-color="#FFFCFA" stop-opacity="0"/>
     </radialGradient>
 
-    <!-- 4 个地形渐变 -->
-    <linearGradient id="swampGrad" x1="0" y1="0" x2="0" y2="1">
+    <!-- 焦虑沼泽 · 紫雾 -->
+    <linearGradient id="swampSky" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#E8E0EC"/>
-      <stop offset="100%" stop-color="#D8C8DC"/>
+      <stop offset="60%" stop-color="#D8C8DC"/>
+      <stop offset="100%" stop-color="#B8A8C8"/>
     </linearGradient>
-    <linearGradient id="forestGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#DCE8DC"/>
-      <stop offset="100%" stop-color="#B8D0B8"/>
+    <radialGradient id="swampMist" cx="50%" cy="80%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="swampBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0E8F2"/>
+      <stop offset="100%" stop-color="#E0D0E4"/>
     </linearGradient>
-    <linearGradient id="emberGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#FFE4DC"/>
-      <stop offset="100%" stop-color="#FFC8B8"/>
+
+    <!-- 真实热情之林 · 层叠树林 -->
+    <linearGradient id="forestSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F2E8DC"/>
+      <stop offset="100%" stop-color="#D8E0C8"/>
     </linearGradient>
-    <linearGradient id="sleepGrad" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="forestBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E8F0E0"/>
+      <stop offset="100%" stop-color="#C8D8B8"/>
+    </linearGradient>
+
+    <!-- 新冒火苗 · 暖橙光晕 -->
+    <radialGradient id="emberGlow" cx="50%" cy="80%" r="60%">
+      <stop offset="0%" stop-color="#FFD0A8" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#F5B098" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#F5B098" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="emberSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFE8DC"/>
+      <stop offset="100%" stop-color="#F5C8B0"/>
+    </linearGradient>
+    <linearGradient id="emberBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFEEE0"/>
+      <stop offset="100%" stop-color="#FFC8B0"/>
+    </linearGradient>
+
+    <!-- 沉睡之地 · 夜空月 -->
+    <linearGradient id="sleepSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5A6080"/>
+      <stop offset="50%" stop-color="#7080A0"/>
+      <stop offset="100%" stop-color="#A0B0C8"/>
+    </linearGradient>
+    <linearGradient id="sleepBg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#E0E4EC"/>
-      <stop offset="100%" stop-color="#C0C8D8"/>
+      <stop offset="100%" stop-color="#C0CCD8"/>
     </linearGradient>
 
     <filter id="softShadow">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
-      <feOffset dx="0" dy="5"/>
-      <feComponentTransfer><feFuncA type="linear" slope="0.12"/></feComponentTransfer>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+      <feOffset dx="0" dy="6"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.15"/></feComponentTransfer>
       <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
+
+    <!-- art clip paths -->
+    <clipPath id="artA"><rect x="0" y="0" width="490" height="130" rx="18"/></clipPath>
+    <clipPath id="artB"><rect x="0" y="0" width="490" height="130" rx="18"/></clipPath>
+    <clipPath id="artC"><rect x="0" y="0" width="490" height="130" rx="18"/></clipPath>
+    <clipPath id="artD"><rect x="0" y="0" width="490" height="130" rx="18"/></clipPath>
   </defs>
 
   <rect width="1280" height="800" fill="#FFFCFA"/>
@@ -43,155 +82,210 @@
   <rect x="0" y="0" width="1280" height="3" fill="url(#grad)"/>
 
   <!-- 标题 -->
-  <g transform="translate(640, 70)">
+  <g transform="translate(640, 60)">
     <text x="0" y="0" font-family="'DM Mono','SF Mono',monospace" font-size="12"
           letter-spacing="4" fill="#D9706A" opacity="0.7" text-anchor="middle">
       § 3 · 你的地形
     </text>
-    <text x="0" y="40" font-family="'DM Serif Display','Noto Serif SC',serif"
-          font-size="34" fill="#2A1520" text-anchor="middle" letter-spacing="-0.3">
+    <text x="0" y="38" font-family="'DM Serif Display','Noto Serif SC',serif"
+          font-size="32" fill="#2A1520" text-anchor="middle" letter-spacing="-0.3">
       四种地形 · 用隐喻看清你的兴趣分布
     </text>
-    <text x="0" y="72" font-family="'Source Serif 4','Noto Serif SC',serif"
-          font-size="17" font-style="italic" fill="#7A5560" text-anchor="middle">
+    <text x="0" y="66" font-family="'Source Serif 4','Noto Serif SC',serif"
+          font-size="15" font-style="italic" fill="#7A5560" text-anchor="middle">
       不是评判 · 是给你一个看清自己的镜子
     </text>
   </g>
 
-  <!-- 2×2 网格 -->
-  <!-- 焦虑沼泽 -->
-  <g transform="translate(140, 220)" filter="url(#softShadow)">
-    <rect x="0" y="0" width="490" height="240" rx="18" fill="url(#swampGrad)" stroke="#C0B0C8" stroke-width="1"/>
-
-    <!-- icon · 沼泽 -->
-    <g transform="translate(36, 36)" opacity="0.6">
-      <ellipse cx="30" cy="50" rx="32" ry="10" fill="#A090B0"/>
-      <ellipse cx="30" cy="40" rx="25" ry="6" fill="#9080A0"/>
+  <!-- ═══════════════ 焦虑沼泽 ═══════════════ -->
+  <g transform="translate(120, 170)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="490" height="270" rx="18" fill="url(#swampBg)" stroke="#B0A0C0" stroke-width="1"/>
+    <!-- 水彩 art 区 (顶部 130) -->
+    <g clip-path="url(#artA)">
+      <rect x="0" y="0" width="490" height="130" fill="url(#swampSky)"/>
+      <!-- 远山影 -->
+      <path d="M 0 100 Q 80 75 160 90 Q 240 78 320 95 Q 400 80 490 95 L 490 130 L 0 130 Z" fill="#A090B0" opacity="0.55"/>
+      <path d="M 0 110 Q 100 92 200 100 Q 300 88 400 100 Q 440 95 490 105 L 490 130 L 0 130 Z" fill="#8878A0" opacity="0.7"/>
+      <!-- 雾气 -->
+      <ellipse cx="245" cy="120" rx="280" ry="30" fill="url(#swampMist)"/>
       <!-- 芦苇 -->
-      <line x1="15" y1="40" x2="15" y2="15" stroke="#8070A0" stroke-width="2"/>
-      <line x1="45" y1="42" x2="45" y2="18" stroke="#8070A0" stroke-width="2"/>
+      <g stroke="#605070" stroke-width="2" stroke-linecap="round" opacity="0.85" fill="none">
+        <line x1="60"  y1="115" x2="60"  y2="80"/>
+        <line x1="68"  y1="115" x2="66"  y2="85"/>
+        <ellipse cx="60" cy="76" rx="3" ry="6" fill="#605070" stroke="none"/>
+        <ellipse cx="66" cy="82" rx="2" ry="4.5" fill="#605070" stroke="none"/>
+        <line x1="430" y1="115" x2="430" y2="85"/>
+        <line x1="437" y1="115" x2="436" y2="78"/>
+        <ellipse cx="430" cy="82" rx="2.5" ry="5" fill="#605070" stroke="none"/>
+        <ellipse cx="436" cy="74" rx="2.5" ry="5.5" fill="#605070" stroke="none"/>
+      </g>
+      <!-- 水面反射 -->
+      <ellipse cx="240" cy="128" rx="200" ry="3" fill="#A090B0" opacity="0.3"/>
     </g>
 
-    <text x="120" y="60" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="24" font-weight="600" fill="#2A1520">
-      焦虑沼泽
-    </text>
-    <text x="120" y="84" font-family="'DM Mono',monospace" font-size="11" letter-spacing="2" fill="#9080A0">
-      ANXIETY SWAMP · 旧学英语方法
-    </text>
+    <!-- 文字区 -->
+    <g transform="translate(36, 158)">
+      <text x="0" y="0" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="26" font-weight="600" fill="#2A1520">焦虑沼泽</text>
+      <text x="0" y="22" font-family="'DM Mono',monospace" font-size="10" letter-spacing="2" fill="#9080A0">ANXIETY SWAMP · 旧学英语方法</text>
 
-    <text x="36" y="138" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="20" fill="#2A1520" font-style="italic">
-      你存了 12 条「学英语方法」
-    </text>
-    <text x="36" y="166" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="20" fill="#2A1520" font-style="italic">
-      只有 1 条真正进入过你的注意力
-    </text>
+      <text x="0" y="58" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#3A2530" font-style="italic">
+        你存了 12 条「学英语方法」
+      </text>
+      <text x="0" y="80" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#3A2530" font-style="italic">
+        只有 1 条真正进入过你的注意力
+      </text>
 
-    <!-- stats -->
-    <g transform="translate(36, 195)">
-      <text x="0" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">12 条</text>
-      <text x="80" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">真用 4%</text>
-      <text x="180" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">等了 14 个月</text>
-    </g>
-  </g>
-
-  <!-- 真实热情之林 -->
-  <g transform="translate(650, 220)" filter="url(#softShadow)">
-    <rect x="0" y="0" width="490" height="240" rx="18" fill="url(#forestGrad)" stroke="#A0C0A0" stroke-width="1"/>
-
-    <!-- icon · 树林 -->
-    <g transform="translate(36, 36)" opacity="0.7">
-      <polygon points="20,55 8,30 32,30" fill="#5A8050"/>
-      <rect x="17" y="52" width="6" height="10" fill="#704030"/>
-      <polygon points="45,55 30,22 60,22" fill="#4A7040"/>
-      <rect x="42" y="52" width="6" height="10" fill="#704030"/>
-    </g>
-
-    <text x="120" y="60" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="24" font-weight="600" fill="#2A1520">
-      真实热情之林
-    </text>
-    <text x="120" y="84" font-family="'DM Mono',monospace" font-size="11" letter-spacing="2" fill="#608060">
-      REAL-PASSION FOREST · 投资与金融市场
-    </text>
-
-    <text x="36" y="138" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="20" fill="#2A1520" font-style="italic">
-      投资这块不是收藏
-    </text>
-    <text x="36" y="166" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="20" fill="#2A1520" font-style="italic">
-      是真在用
-    </text>
-
-    <g transform="translate(36, 195)">
-      <text x="0" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">40 条</text>
-      <text x="80" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">真用 75%</text>
-      <text x="180" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">等了 3 个月</text>
+      <g transform="translate(0, 100)">
+        <text x="0" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">12 条</text>
+        <text x="80" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">真用 4%</text>
+        <text x="180" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">等了 14 个月</text>
+      </g>
     </g>
   </g>
 
-  <!-- 新冒火苗 -->
-  <g transform="translate(140, 490)" filter="url(#softShadow)">
-    <rect x="0" y="0" width="490" height="240" rx="18" fill="url(#emberGrad)" stroke="#E8B0A0" stroke-width="1"/>
-
-    <!-- icon · 火苗 -->
-    <g transform="translate(36, 36)" opacity="0.7">
-      <path d="M30 60 Q15 45 25 25 Q30 35 35 25 Q40 35 40 30 Q45 50 30 60 Z" fill="#D97050"/>
-      <path d="M30 58 Q22 48 27 32 Q35 50 30 58 Z" fill="#F5A080"/>
+  <!-- ═══════════════ 真实热情之林 ═══════════════ -->
+  <g transform="translate(670, 170)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="490" height="270" rx="18" fill="url(#forestBg)" stroke="#90A880" stroke-width="1"/>
+    <g clip-path="url(#artB)">
+      <rect x="0" y="0" width="490" height="130" fill="url(#forestSky)"/>
+      <!-- 远树林轮廓 -->
+      <path d="M 0 95 Q 30 70 60 85 Q 90 65 120 80 Q 150 60 180 78 Q 210 65 240 80 Q 270 60 300 78 Q 330 65 360 78 Q 390 60 420 78 Q 450 65 490 80 L 490 130 L 0 130 Z" fill="#80A070" opacity="0.5"/>
+      <!-- 中景树 -->
+      <g opacity="0.85">
+        <polygon points="80,115 60,75 100,75" fill="#5A8050"/>
+        <rect x="76" y="112" width="8" height="14" fill="#5A4030"/>
+        <polygon points="150,118 122,68 178,68" fill="#4A7040"/>
+        <rect x="146" y="115" width="8" height="14" fill="#5A4030"/>
+        <polygon points="240,115 215,72 265,72" fill="#5A8050"/>
+        <rect x="236" y="112" width="8" height="14" fill="#5A4030"/>
+        <polygon points="340,118 312,68 368,68" fill="#4A7040"/>
+        <rect x="336" y="115" width="8" height="14" fill="#5A4030"/>
+        <polygon points="420,115 400,75 440,75" fill="#5A8050"/>
+        <rect x="416" y="112" width="8" height="14" fill="#5A4030"/>
+      </g>
+      <!-- 阳光 dust -->
+      <g fill="#FFEFD5" opacity="0.6">
+        <circle cx="200" cy="35" r="2"/>
+        <circle cx="220" cy="50" r="1.5"/>
+        <circle cx="180" cy="45" r="1.5"/>
+        <circle cx="380" cy="40" r="2"/>
+        <circle cx="400" cy="55" r="1.5"/>
+      </g>
     </g>
 
-    <text x="120" y="60" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="24" font-weight="600" fill="#2A1520">
-      新冒火苗
-    </text>
-    <text x="120" y="84" font-family="'DM Mono',monospace" font-size="11" letter-spacing="2" fill="#D97050">
-      NEW EMBER · 健身
-    </text>
+    <g transform="translate(36, 158)">
+      <text x="0" y="0" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="26" font-weight="600" fill="#2A1520">真实热情之林</text>
+      <text x="0" y="22" font-family="'DM Mono',monospace" font-size="10" letter-spacing="2" fill="#608060">REAL-PASSION FOREST · 投资与金融市场</text>
 
-    <text x="36" y="138" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="20" fill="#2A1520" font-style="italic">
-      30 天里突然冒出 5 条
-    </text>
-    <text x="36" y="166" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="20" fill="#2A1520" font-style="italic">
-      是个开始 · 别让它熄
-    </text>
+      <text x="0" y="58" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#3A2530" font-style="italic">
+        投资这块不是收藏
+      </text>
+      <text x="0" y="80" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#3A2530" font-style="italic">
+        是真在用 · 真在长
+      </text>
 
-    <g transform="translate(36, 195)">
-      <text x="0" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">5 条</text>
-      <text x="80" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">全在近 30 天</text>
-      <text x="200" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">之前 0</text>
-    </g>
-  </g>
-
-  <!-- 沉睡之地 -->
-  <g transform="translate(650, 490)" filter="url(#softShadow)">
-    <rect x="0" y="0" width="490" height="240" rx="18" fill="url(#sleepGrad)" stroke="#A0B0C0" stroke-width="1"/>
-
-    <!-- icon · 月 -->
-    <g transform="translate(36, 36)" opacity="0.7">
-      <circle cx="35" cy="40" r="22" fill="#A0B0C8"/>
-      <circle cx="42" cy="34" r="22" fill="#E0E4EC"/>
-      <circle cx="20" cy="20" r="2" fill="#A0B0C8"/>
-      <circle cx="55" cy="25" r="1.5" fill="#A0B0C8"/>
-    </g>
-
-    <text x="120" y="60" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="24" font-weight="600" fill="#2A1520">
-      沉睡之地
-    </text>
-    <text x="120" y="84" font-family="'DM Mono',monospace" font-size="11" letter-spacing="2" fill="#7080A0">
-      DORMANT LAND · 设计灵感
-    </text>
-
-    <text x="36" y="138" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="20" fill="#2A1520" font-style="italic">
-      设计灵感这条线
-    </text>
-    <text x="36" y="166" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="20" fill="#2A1520" font-style="italic">
-      5 个月没动过了
-    </text>
-
-    <g transform="translate(36, 195)">
-      <text x="0" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">4 条</text>
-      <text x="80" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">真用 0%</text>
-      <text x="180" y="0" font-family="'DM Mono',monospace" font-size="13" fill="#7A5560">5 个月未访</text>
+      <g transform="translate(0, 100)">
+        <text x="0" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">40 条</text>
+        <text x="80" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">真用 75%</text>
+        <text x="180" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">等了 3 个月</text>
+      </g>
     </g>
   </g>
 
-  <!-- 底部 caption -->
+  <!-- ═══════════════ 新冒火苗 ═══════════════ -->
+  <g transform="translate(120, 470)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="490" height="270" rx="18" fill="url(#emberBg)" stroke="#E8B098" stroke-width="1"/>
+    <g clip-path="url(#artC)">
+      <rect x="0" y="0" width="490" height="130" fill="url(#emberSky)"/>
+      <!-- 大暖光晕 -->
+      <ellipse cx="245" cy="135" rx="300" ry="80" fill="url(#emberGlow)"/>
+      <!-- 火苗主体 -->
+      <g transform="translate(220, 60)">
+        <path d="M 25 70 Q 5 50 15 25 Q 22 38 28 18 Q 32 33 35 28 Q 45 45 45 60 Q 45 78 25 78 Z" fill="#E07050" opacity="0.85"/>
+        <path d="M 25 68 Q 12 52 18 32 Q 28 50 25 68 Z" fill="#F5B080" opacity="0.95"/>
+        <path d="M 26 60 Q 22 50 25 42 Q 28 50 26 60 Z" fill="#FFF0CC"/>
+      </g>
+      <!-- 上升 spark 萤光 -->
+      <g fill="#F5B080" opacity="0.8">
+        <circle cx="180" cy="55" r="2.5"/>
+        <circle cx="195" cy="38" r="2"/>
+        <circle cx="290" cy="48" r="2"/>
+        <circle cx="280" cy="30" r="1.5"/>
+        <circle cx="155" cy="80" r="2"/>
+        <circle cx="320" cy="78" r="1.5"/>
+      </g>
+      <g fill="#F8C8A0" opacity="0.6">
+        <circle cx="100" cy="65" r="1.5"/>
+        <circle cx="380" cy="60" r="1.5"/>
+        <circle cx="60" cy="90" r="2"/>
+        <circle cx="430" cy="85" r="1.5"/>
+      </g>
+    </g>
+
+    <g transform="translate(36, 158)">
+      <text x="0" y="0" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="26" font-weight="600" fill="#2A1520">新冒火苗</text>
+      <text x="0" y="22" font-family="'DM Mono',monospace" font-size="10" letter-spacing="2" fill="#D97050">NEW EMBER · 健身</text>
+
+      <text x="0" y="58" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#3A2530" font-style="italic">
+        30 天里突然冒出 5 条
+      </text>
+      <text x="0" y="80" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#3A2530" font-style="italic">
+        是个开始 · 别让它熄
+      </text>
+
+      <g transform="translate(0, 100)">
+        <text x="0" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">5 条</text>
+        <text x="80" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">全在近 30 天</text>
+        <text x="200" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">之前 0 条</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ═══════════════ 沉睡之地 ═══════════════ -->
+  <g transform="translate(670, 470)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="490" height="270" rx="18" fill="url(#sleepBg)" stroke="#A0B0C0" stroke-width="1"/>
+    <g clip-path="url(#artD)">
+      <rect x="0" y="0" width="490" height="130" fill="url(#sleepSky)"/>
+      <!-- 月亮 -->
+      <g transform="translate(380, 25)">
+        <circle cx="0" cy="0" r="28" fill="#F8F2E0" opacity="0.9"/>
+        <circle cx="-6" cy="-4" r="28" fill="#5A6080" opacity="0"/>
+        <circle cx="5" cy="-3" r="3" fill="#D0C8B0" opacity="0.4"/>
+        <circle cx="-3" cy="6" r="2" fill="#D0C8B0" opacity="0.4"/>
+      </g>
+      <!-- 星星 -->
+      <g fill="#F8F2E0">
+        <circle cx="60" cy="20" r="1.2"/>
+        <circle cx="120" cy="40" r="1"/>
+        <circle cx="200" cy="25" r="1.3"/>
+        <circle cx="270" cy="48" r="1"/>
+        <circle cx="450" cy="60" r="1"/>
+        <circle cx="160" cy="60" r="0.9"/>
+      </g>
+      <!-- 远山轮廓 -->
+      <path d="M 0 90 Q 60 70 120 85 Q 200 65 280 90 Q 360 75 430 85 Q 460 78 490 88 L 490 130 L 0 130 Z" fill="#2A3050" opacity="0.7"/>
+      <path d="M 0 105 Q 100 88 200 102 Q 300 88 400 105 Q 440 95 490 105 L 490 130 L 0 130 Z" fill="#1A2040" opacity="0.85"/>
+    </g>
+
+    <g transform="translate(36, 158)">
+      <text x="0" y="0" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="26" font-weight="600" fill="#2A1520">沉睡之地</text>
+      <text x="0" y="22" font-family="'DM Mono',monospace" font-size="10" letter-spacing="2" fill="#5070A0">DORMANT LAND · 设计灵感</text>
+
+      <text x="0" y="58" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#3A2530" font-style="italic">
+        设计灵感这条线
+      </text>
+      <text x="0" y="80" font-family="'DM Serif Display','Noto Serif SC',serif" font-size="17" fill="#3A2530" font-style="italic">
+        5 个月没动过了
+      </text>
+
+      <g transform="translate(0, 100)">
+        <text x="0" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">4 条</text>
+        <text x="80" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">真用 0%</text>
+        <text x="180" y="0" font-family="'DM Mono',monospace" font-size="11" fill="#7A5560">5 个月未访</text>
+      </g>
+    </g>
+  </g>
+
   <text x="640" y="780" font-family="'DM Mono',monospace" font-size="11" letter-spacing="3"
         fill="#B89098" text-anchor="middle">
     HIDDEN SELF · § 3 OF 6 · YOUR INNER TERRAIN
