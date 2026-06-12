@@ -72,10 +72,12 @@
      font-family="'DM Mono','SF Mono','Menlo',monospace"
      font-size="14" letter-spacing="2"
      fill="#7A5560">
-    <text x="-180" y="0">消费风格</text>
-    <text x="0"    y="0" fill="#D9706A" font-weight="600">×</text>
-    <text x="0"    y="-22" fill="#D9706A" opacity="0.3" font-size="10">CHORD TRIAD</text>
-    <text x="180"  y="0">心境 × 半径</text>
+    <text x="-200" y="0">消费风格</text>
+    <text x="-60" y="-22" fill="#D9706A" opacity="0.3" font-size="10">CHORD TRIAD · 三和弦身份</text>
+    <text x="-30"  y="0" fill="#D9706A" font-weight="600">·</text>
+    <text x="40"   y="0">心境</text>
+    <text x="130"  y="0" fill="#D9706A" font-weight="600">·</text>
+    <text x="200"  y="0">半径</text>
   </g>
 
   <!-- 底部 url / 装饰 -->
