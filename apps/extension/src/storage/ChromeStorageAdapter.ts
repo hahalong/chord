@@ -207,6 +207,20 @@ export class ChromeStorageAdapter implements StorageAdapter {
       merged.aiEngine = stripComputedApiKey(merged.aiEngine)
     }
     await chrome.storage.local.set({ [STORAGE_KEY_SETTINGS]: merged })
+
+    // v0.1.3 · 切换 AI provider → 清旧 cluster + 通知 sw 强制重跑
+    //   背景: 用户在 OpenAI provider 没填 key 那次跑了 tfidf 写一堆怪 cluster
+    //         切回 chord_bundled 后, 旧 cluster 残留, 防抖 5min 内不重跑 → 用户一直看到怪 cluster
+    //   修法: 切 provider 必清 cluster, 让下次 maybeRunBackgroundRecluster 立刻触发
+    //         消息发给 sw 由 sw 复用现有 force 路径
+    const prevProvider = current.aiEngine?.provider
+    const nextProvider = merged.aiEngine?.provider
+    if (prevProvider && nextProvider && prevProvider !== nextProvider) {
+      await chrome.storage.local.remove(STORAGE_KEY_CLUSTERS)
+      try {
+        chrome.runtime.sendMessage({ type: 'AI_PROVIDER_CHANGED', from: prevProvider, to: nextProvider }).catch(() => {})
+      } catch { /* SW 可能还没起来, sw 启动会自己跑一次 */ }
+    }
   }
 
 
