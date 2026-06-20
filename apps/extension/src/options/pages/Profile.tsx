@@ -69,7 +69,21 @@ export function Profile() {
     )
     // v3.1.25 · 先算 identityCards 再算 findings——让 §3 能拿 consumptionId 做"不一致硬约束"
     //   （如 MINIMALIST 用户 §3 不该有焦虑沼泽）
-    identityCards.value = IdentityService.computeAllIdentities(allItems, visitCounts)
+    // v0.1.4 · 滞后区: 读上次身份缓存传给 computeAllIdentities, 临界值小波动时保留 prev
+    let prevCards: IdentityCard[] | undefined
+    try {
+      const cached = await new Promise<{ chord_identity_cache?: { at: number; cards: IdentityCard[] } }>((resolve) => {
+        chrome.storage.local.get('chord_identity_cache', (d) => resolve(d as any))
+      })
+      const c = cached.chord_identity_cache
+      // 缓存 7 天内有效, 超过认为可能数据有大变化, 跳过滞后区
+      if (c && Array.isArray(c.cards) && Date.now() - c.at < 7 * 86_400_000) {
+        prevCards = c.cards
+      }
+    } catch { /* 首次没缓存, 走原路径 */ }
+    identityCards.value = IdentityService.computeAllIdentities(allItems, visitCounts, undefined, prevCards)
+    // 写回缓存让下次加载用
+    chrome.storage.local.set({ chord_identity_cache: { at: Date.now(), cards: identityCards.value } }).catch(() => {})
     const consumptionCard = identityCards.value.find((c) => c.dimension === 'consumption')
     findings.value = await AnalyticsService.computeInsights(adapter, visitCounts, consumptionCard?.id)
     // v3.1.14 · 传 consumptionId 给 §2，让 §2 按身份跳冲突 template
@@ -1419,12 +1433,18 @@ function ShareCardModal({ cards, comboName, items, onClose }: {
                 <div class="sc-side-en">{sideCards[0].card.enName}</div>
                 <div class="sc-side-zh">{sideCards[0].card.name}</div>
               </div>
-            ) : (
-              <div class="sc-side-card sc-side-empty">
-                <div class="sc-side-dim">{dimLabelMini[sideCards[0]?.dim ?? 'mindset']}</div>
-                <div class="sc-side-en">还看不清</div>
-              </div>
-            )}
+            ) : (() => {
+              // v0.1.2 · 缺数据态也用 UNSEEN_*.png + hint 文案，跟 §1 视觉一致
+              const dim = sideCards[0]?.dim ?? 'mindset'
+              return (
+                <div class={`sc-side-card sc-side-${dim} sc-side-empty`}>
+                  <div class="sc-side-img"><img src={`/assets/identity-art/chatgpt/${UNSEEN_IMG[dim]}.png`} alt={`${dimLabelMini[dim]} · 还看不清`} /></div>
+                  <div class="sc-side-dim">{dimLabelMini[dim]}</div>
+                  <div class="sc-side-en">还看不清</div>
+                  <div class="sc-side-zh">{EMPTY_HINT_SHORT[dim]}</div>
+                </div>
+              )
+            })()}
             {/* 主卡 = main */}
             <div class="sc-main-card">
               <div class="sc-main-img"><img src={imgPath(main.id)} alt={main.enName} /></div>
@@ -1450,12 +1470,17 @@ function ShareCardModal({ cards, comboName, items, onClose }: {
                 <div class="sc-side-en">{sideCards[1].card.enName}</div>
                 <div class="sc-side-zh">{sideCards[1].card.name}</div>
               </div>
-            ) : (
-              <div class="sc-side-card sc-side-empty">
-                <div class="sc-side-dim">{dimLabelMini[sideCards[1]?.dim ?? 'radius']}</div>
-                <div class="sc-side-en">还看不清</div>
-              </div>
-            )}
+            ) : (() => {
+              const dim = sideCards[1]?.dim ?? 'radius'
+              return (
+                <div class={`sc-side-card sc-side-${dim} sc-side-empty`}>
+                  <div class="sc-side-img"><img src={`/assets/identity-art/chatgpt/${UNSEEN_IMG[dim]}.png`} alt={`${dimLabelMini[dim]} · 还看不清`} /></div>
+                  <div class="sc-side-dim">{dimLabelMini[dim]}</div>
+                  <div class="sc-side-en">还看不清</div>
+                  <div class="sc-side-zh">{EMPTY_HINT_SHORT[dim]}</div>
+                </div>
+              )
+            })()}
           </div>
           {/* 综合 narrative —— 体现"三和弦"而非单卡。按句号自然分行避免挤成一团 */}
           {narrative && (

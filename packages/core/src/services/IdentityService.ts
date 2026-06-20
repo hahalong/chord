@@ -67,6 +67,8 @@ export function computeAllIdentities(
   items: Item[],
   visitCounts?: Map<string, number>,
   now: number = Date.now(),
+  /** v0.1.4 · 上次判出的身份 cards, 用于滞后区: 临界值小波动时保留 prev 身份, 避免反复横跳 */
+  previousCards?: IdentityCard[],
 ): IdentityCard[] {
   // v3.1.26 · "items" 精细化定义——按维度选 active vs full
   //   - consumption（你跟内容的关系）→ active：放手了就不再是你的收藏，UX 视角对齐
@@ -86,7 +88,9 @@ export function computeAllIdentities(
   if (mindset) cards.push(mindset)
 
   // radius 用 full —— release 的内容曾覆盖用户注意力，应该计入注意力范围画像
-  const radius = inferRadiusIdentity(contentItems, now)
+  // v0.1.4 · 传 previousRadiusId 给推断函数, 让滞后区 fallback 能用
+  const prevRadiusId = previousCards?.find((c) => c.dimension === 'radius')?.id as RadiusIdentity | undefined
+  const radius = inferRadiusIdentity(contentItems, now, prevRadiusId)
   if (radius) cards.push(radius)
 
   // v3.1 · 按 extremity 排序（主卡 = 最突出的维度）
@@ -614,7 +618,7 @@ function inferMindsetIdentity(
 /**
  * 注意力半径基于 90 天 cluster 分布 + 切换模式判定。
  */
-function inferRadiusIdentity(items: Item[], now: number): IdentityCard | null {
+function inferRadiusIdentity(items: Item[], now: number, previousId?: RadiusIdentity | null): IdentityCard | null {
   if (notEnoughData(items)) return null
 
   // 90 天窗：当前注意力半径基础
@@ -696,8 +700,89 @@ function inferRadiusIdentity(items: Item[], now: number): IdentityCard | null {
       confidence, extremity)
   }
 
+  // v0.1.4 · 滞后区 fallback · 解决"同一天身份反复跳变"
+  //   逻辑: 落到中间态前先看上次身份, 用"宽松版条件"重判——能成立就保留 prev
+  //   宽松版 = 原阈值 ± HYSTERESIS_*_BAND, 即"还在死区内"
+  //   死区外才让用户看到身份变化, 不会因 top1=39%/41% 的 1-2% 波动而 SPECIALIST↔GENERALIST 横跳
+  if (previousId) {
+    const fits = stillFitsRadius(previousId, { top1Share, top3Share, clusterCount, ent, items, now })
+    if (fits) {
+      // 用宽松版重建一张 card; confidence 略降表示"靠滞后区维持"
+      return makeCardForRadius(previousId, { top1Share, top3Share, clusterCount, ent, sorted, total, confidenceMul: 0.85 })
+    }
+  }
+
   // 介于专精和广博之间的中间态——不给身份，留 null（避免误判）
   return null
+}
+
+/**
+ * v0.1.4 · 滞后区: 上次判出的 radius 身份, 用宽松版条件看是否仍成立
+ *   每个身份原阈值 ± HYSTERESIS_*_BAND, 在死区内视为"仍是 prev 身份"
+ */
+function stillFitsRadius(
+  previousId: RadiusIdentity,
+  ctx: { top1Share: number; top3Share: number; clusterCount: number; ent: number; items: Item[]; now: number },
+): boolean {
+  const { top1Share, top3Share, clusterCount, ent, items, now } = ctx
+  const SB = CFG.HYSTERESIS_SHARE_BAND
+  const CB = CFG.HYSTERESIS_CLUSTER_BAND
+  const EB = CFG.HYSTERESIS_ENTROPY_BAND
+
+  if (previousId === 'specialist') {
+    return top1Share > CFG.SPECIALIST_MIN_TOP1_SHARE - SB
+        && top3Share > CFG.SPECIALIST_MIN_TOP3_SHARE - SB
+        && clusterCount > 0
+  }
+  if (previousId === 'generalist') {
+    // 严格 OR 长尾 (两条原路径都放宽)
+    const looseStrict = top1Share < CFG.GENERALIST_MAX_TOP1_SHARE + SB
+                     && clusterCount > CFG.GENERALIST_MIN_CLUSTER_COUNT - CB
+                     && ent > CFG.GENERALIST_MIN_ENTROPY - EB
+    const looseLongtail = clusterCount >= CFG.GENERALIST_LONGTAIL_MIN_CLUSTERS - CB
+                       && top1Share < CFG.GENERALIST_LONGTAIL_MAX_TOP1_SHARE + SB
+                       && ent >= CFG.GENERALIST_LONGTAIL_MIN_ENTROPY - EB
+    return looseStrict || looseLongtail
+  }
+  if (previousId === 'switcher') {
+    const recent30Clusters = new Set([...clusterShares(inWindow(items, 30, 0, now)).keys()])
+    const prev60Clusters = new Set([...clusterShares(inWindow(items, 90, 30, now)).keys()])
+    const jac = jaccard(recent30Clusters, prev60Clusters)
+    return jac < CFG.SWITCHER_MAX_JACCARD + SB
+        && recent30Clusters.size >= CFG.SWITCHER_MIN_CLUSTER_SIZE - CB
+        && recent30Clusters.size <= CFG.SWITCHER_MAX_CLUSTER_SIZE + CB
+        && prev60Clusters.size >= CFG.SWITCHER_MIN_CLUSTER_SIZE - CB
+        && prev60Clusters.size <= CFG.SWITCHER_MAX_CLUSTER_SIZE + CB
+  }
+  return false
+}
+
+function makeCardForRadius(
+  id: RadiusIdentity,
+  ctx: { top1Share: number; top3Share: number; clusterCount: number; ent: number; sorted: Array<[string, number]>; total: number; confidenceMul: number },
+): IdentityCard {
+  const { top1Share, top3Share, clusterCount, ent, sorted, total, confidenceMul } = ctx
+  if (id === 'specialist') {
+    const topName = sorted[0]?.[0] ?? ''
+    return makeCard('radius', 'specialist', 'SPECIALIST', '专精派',
+      `你深耕在「${topName}」附近——别的方向对你来说有点远。`,
+      `近 90 天 ${Math.round(top1Share * 100)}% 的注意力在 1 个主题，前 3 个占 ${Math.round(top3Share * 100)}%。`,
+      0.55 * confidenceMul, 0.5 * confidenceMul)
+  }
+  if (id === 'generalist') {
+    const top1Name = sorted[0]?.[0] ?? ''
+    const top2Name = sorted[1]?.[0] ?? ''
+    const top2Share = sorted[1] ? sorted[1][1] / total : 0
+    return makeCard('radius', 'generalist', 'GENERALIST', '广博派',
+      `你有两条主线，但又不肯只走两条——「${top1Name}」跟「${top2Name}」之外还撒了很多种子。`,
+      `近 90 天 ${clusterCount} 个主题：「${top1Name}」${Math.round(top1Share * 100)}% + 「${top2Name}」${Math.round(top2Share * 100)}%，其余 ${Math.max(0, clusterCount - 2)} 个主题平摊剩下的注意力。`,
+      0.5 * confidenceMul, 0.5 * confidenceMul)
+  }
+  // switcher
+  return makeCard('radius', 'switcher', 'SWITCHER', '跳跃者',
+    '你的注意力像潮汐——这阵一群主题，下阵换一群。',
+    `近 30 天的主题分布跟前 60 天接近"换了一群"。`,
+    0.5 * confidenceMul, 0.5 * confidenceMul)
 }
 
 // ─── 工厂函数 ───────────────────────────────────────────────

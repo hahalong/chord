@@ -40,7 +40,7 @@ interface IdentityFixture {
 
 // ─── 12 个 named 3D combo fixture（数据 spec 移植自 preview/cases.ts） ───
 
-const FIXTURES: IdentityFixture[] = [
+export const FIXTURES: IdentityFixture[] = [
   // ─── 12 个完整命名 3D combo ───
   {
     mbti: 'HXG', name: '信息焦虑囤积家',

@@ -215,6 +215,21 @@ Reads the active tab's URL/title only when the user clicks Chord's icon, used fo
 Schedules the daily resurface reminder. Local scheduling only, no network.
 ```
 
+### Host Permission (`<all_urls>` content script matches)
+> CWS 表单字段叫 "需请求主机权限的理由" / "Host permission justification"。Chord 实际 `host_permissions: []`，但 content script 的 matches 用了 `<all_urls>`，CWS 视为同类，必须解释。
+
+```
+Chord 的 content script (classifier-hint.ts) 用 <all_urls> matches 在所有页面预注入。它仅在用户主动把当前页面加入 Chrome 书签时被激活，弹一个 2 秒的小气泡询问该页面应分类为「内容型」（进书房）还是「工具型」（进快速入口），帮助 Chord 后续 AI 聚类。Content script 不读取页面内容、不修改 DOM、不发任何网络请求。所有 URL 分类偏好仅存于 chrome.storage.local，永不上报。
+
+不使用 <all_urls> 的话，扩展无法在新域名页面被收藏时及时给出分类提示，体验显著下降。
+
+— English —
+
+Chord's content script (classifier-hint.ts) pre-injects via <all_urls> matches but is only activated when the user actively bookmarks the current page. It briefly shows (2 seconds) a small bubble asking whether to classify the page as "content" (for the Library) or "tool" (for Quick Access), helping later AI clustering. The content script does not read page content, modify the DOM, or make any network requests. All domain classification preferences are stored only in chrome.storage.local and are never uploaded.
+
+Without <all_urls>, the extension cannot show this classification prompt on newly bookmarked domains and the UX degrades significantly.
+```
+
 ---
 
 ## Single Purpose Description

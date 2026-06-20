@@ -25,3 +25,6 @@ private-dataset.json
 
 # 内部产品文档（CR / bad case / 算法设计沉淀）—— 不进公开 repo
 产品文档/
+
+# Release zips (放 ~/Desktop 的副本, 不入 repo)
+chord-v*.zip

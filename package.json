@@ -14,7 +14,8 @@
     "eval:real": "pnpm --filter @chord/core eval:real",
     "eval:user-storage": "pnpm --filter @chord/core eval:user-storage",
     "eval:seed": "pnpm --filter @chord/core exec node test/eval/seed-ground-truth.mjs",
-    "chord:inspect": "pnpm --filter @chord/core chord:inspect"
+    "chord:inspect": "pnpm --filter @chord/core chord:inspect",
+    "chord:diag-terrain": "pnpm --filter @chord/core chord:diag-terrain"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -134,9 +134,30 @@ export const IDENTITY_CONFIG = {
   //   实际形态是「双峰 + 长尾」（如 AI 32% + 投资 24% + 9 个辅助主题）
   //   v3.1.28-1 · 11 → 9：cluster 数会因 recluster 在 10-12 之间波动，11 太严
   //   现在 ≥9 触发，跟严格 GENERALIST 的 cluster > 10 一起覆盖整个 9+ 区间
-  GENERALIST_LONGTAIL_MIN_CLUSTERS: 9,
+  // v3.1.32 · GENERALIST_LONGTAIL_MIN_CLUSTERS: 9 → 8
+  //   背景: 用户 CWS 装上后报"半径还看不清" · 实测数据 8 cluster + top1=37.1%
+  //         + top3=74.3% + entropy=0.833 · 真正是广博派但 clusterCount 差 1
+  //   判定: 跟 SPECIALIST 不冲突 (SPECIALIST 仍要 top1 > 40%, 互斥)
+  // v0.1.4 · 8 → 7
+  //   背景: 用户实测 7 cluster + top1=38.1% + top3=80% + entNorm=0.78 仍卡"看不清"
+  //         典型双峰长尾 (AI 工程 38% + AI 应用 32% + 投资 9.5% + 4 个辅助), 应判 GENERALIST
+  //   配合 HYSTERESIS: 临界值附近的小波动用滞后区稳定, 不会让用户每天看到身份跳变
+  GENERALIST_LONGTAIL_MIN_CLUSTERS: 7,
   GENERALIST_LONGTAIL_MAX_TOP1_SHARE: 0.4,
   GENERALIST_LONGTAIL_MIN_ENTROPY: 0.7,
+
+  // ─── 身份滞后区（v0.1.4 · 解决"同一天结果一直变"）────────
+  // 思路: 算出的身份缓存到 storage; 下次重判时优先保留 cached, 除非新数据"明显远离" cached 身份阈值
+  //      避免 top1=39% / 41% 这种 1-2% 波动导致 SPECIALIST ↔ GENERALIST 反复横跳
+  //
+  // 阈值死区: cached 身份的判定条件 ± HYSTERESIS_BAND 内仍视为成立
+  //   - 数值型阈值 (top1Share / top3Share / entropy): ± 0.05 (5%)
+  //   - 计数型阈值 (clusterCount): ± 1
+  //
+  // 死区外: 用新判定结果
+  HYSTERESIS_SHARE_BAND: 0.05,
+  HYSTERESIS_CLUSTER_BAND: 1,
+  HYSTERESIS_ENTROPY_BAND: 0.05,
 
   // ─── Radius · SWITCHER（跳跃者）─────────────────────
   SWITCHER_MAX_JACCARD: 0.3,

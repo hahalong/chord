@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Chord · Chrome Web Store Promotional Tile · 440 × 280 -->
+<!-- Chord CWS Promotional Tile · 440 × 280 · 精简居中 · rsvg 干净渲染 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 280" width="440" height="280">
   <defs>
     <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
@@ -7,71 +7,53 @@
       <stop offset="50%" stop-color="#C8B8D8"/>
       <stop offset="100%" stop-color="#A8C8E0"/>
     </linearGradient>
-    <radialGradient id="bgwash" cx="50%" cy="40%" r="60%">
-      <stop offset="0%" stop-color="#FDF0EF" stop-opacity="0.7"/>
+    <radialGradient id="bgGlow" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#FDF0EF" stop-opacity="0.85"/>
+      <stop offset="60%" stop-color="#FFF5F4" stop-opacity="0.5"/>
       <stop offset="100%" stop-color="#FFFCFA" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
+  <!-- 背景 -->
   <rect width="440" height="280" fill="#FFFCFA"/>
-  <rect width="440" height="280" fill="url(#bgwash)"/>
-  <rect x="0" y="0" width="440" height="2" fill="url(#grad)"/>
+  <rect width="440" height="280" fill="url(#bgGlow)"/>
+  <rect x="0" y="0" width="440" height="3" fill="url(#grad)"/>
 
-  <!-- Logo B (放在左上 · 75×62) -->
-  <g transform="translate(30, 30) scale(0.75)">
-    <path d="M82 18 Q28 18 28 50 Q28 82 82 82" stroke="#D9706A" stroke-width="5" stroke-linecap="round" fill="none"/>
-    <path d="M82 34 Q44 34 44 50 Q44 66 82 66" stroke="#D9706A" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.4"/>
-    <circle cx="87"  cy="50" r="4"   fill="#D9706A"/>
-    <circle cx="99"  cy="50" r="2.8" fill="#D9706A" opacity="0.65"/>
-    <circle cx="109" cy="50" r="1.8" fill="#D9706A" opacity="0.35"/>
+  <!-- Logo 居中靠上 -->
+  <g transform="translate(187, 36)">
+    <path d="M82 18 Q28 18 28 50 Q28 82 82 82"
+          stroke="#D9706A" stroke-width="6" stroke-linecap="round" fill="none"/>
+    <path d="M82 34 Q44 34 44 50 Q44 66 82 66"
+          stroke="#D9706A" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.4"/>
+    <circle cx="87"  cy="50" r="5"   fill="#D9706A"/>
+    <circle cx="100" cy="50" r="3.2" fill="#D9706A" opacity="0.65"/>
+    <circle cx="110" cy="50" r="2"   fill="#D9706A" opacity="0.35"/>
   </g>
 
-  <!-- 主标题 · 中部偏左 -->
-  <text x="155" y="85"
+  <!-- 主标题 · 居中 -->
+  <text x="220" y="170"
         font-family="'DM Serif Display','Noto Serif SC',Georgia,serif"
-        font-size="44" font-weight="400"
-        fill="#2A1520">
+        font-size="40" font-weight="400"
+        fill="#2A1520" text-anchor="middle" letter-spacing="-0.5">
     Chord · 回响
   </text>
 
-  <!-- 中文副标 -->
-  <text x="155" y="125"
+  <!-- 中文副标 italic -->
+  <text x="220" y="205"
         font-family="'Source Serif 4','Noto Serif SC',Georgia,serif"
-        font-size="18" font-style="italic"
-        fill="#7A5560">
+        font-size="17" font-style="italic"
+        fill="#7A5560" text-anchor="middle">
     当收藏开始回应你
   </text>
 
-  <!-- 三和弦 hint 装饰 -->
-  <g transform="translate(220, 195)" text-anchor="middle"
-     font-family="'DM Mono','SF Mono','Menlo',monospace"
-     font-size="11" letter-spacing="1.5"
-     fill="#7A5560">
-    <text x="0" y="-30" fill="#D9706A" opacity="0.4" font-size="9">CHORD TRIAD</text>
-    <text x="-100" y="0">消费风格</text>
-    <text x="-20" y="0" fill="#D9706A" font-weight="600">×</text>
-    <text x="40" y="0">心境</text>
-    <text x="80" y="0" fill="#D9706A" font-weight="600">×</text>
-    <text x="125" y="0">半径</text>
-  </g>
+  <!-- 短分隔线 渐变 -->
+  <line x1="180" y1="225" x2="260" y2="225" stroke="url(#grad)" stroke-width="1.5" stroke-linecap="round"/>
 
-  <!-- 渐变 divider · 短 -->
-  <line x1="170" y1="230" x2="270" y2="230"
-        stroke="url(#grad)" stroke-width="1.5" stroke-linecap="round"/>
-
-  <!-- 底部 url 缩略 -->
-  <text x="220" y="255"
+  <!-- 底部 mono 标签 -->
+  <text x="220" y="252"
         font-family="'DM Mono','SF Mono','Menlo',monospace"
-        font-size="10" letter-spacing="1.5"
+        font-size="11" letter-spacing="2.5"
         fill="#B89098" text-anchor="middle">
-    A Chrome extension for digital de-hoarding
+    A CHROME EXTENSION FOR DIGITAL DE-HOARDING
   </text>
-
-  <!-- 4 个角落樱花极淡点缀 -->
-  <g fill="#F5C0BE" opacity="0.3">
-    <circle cx="30"  cy="30"  r="2"/>
-    <circle cx="410" cy="30"  r="2"/>
-    <circle cx="30"  cy="250" r="2"/>
-    <circle cx="410" cy="250" r="2"/>
-  </g>
 </svg>

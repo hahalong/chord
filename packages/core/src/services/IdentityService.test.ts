@@ -281,6 +281,27 @@ describe('IdentityService · radius 维度', () => {
     expect(radius?.claim).toContain('什么都感兴趣')
   })
 
+  it('v3.1.32 · 8 cluster + top1 37% + entropy 0.83 → GENERALIST (CWS 用户实测 case)', () => {
+    // 模拟 CWS 用户的真实数据分布：
+    //   投资与金融市场 39 (37%) / AI 应用与工具 22 (21%) / AI 工程与论文 17 (16%) /
+    //   招聘信息 9 (8.6%) / 测试与面试 7 / 工具型入口 4 / 其他 4 / 个人创作与生活 3
+    // 共 105 条 · 8 cluster · top1=37% · entropy ≈ 0.83
+    // v3.1.32 把 GENERALIST_LONGTAIL_MIN_CLUSTERS 从 9 → 8 让这种用户能命中长尾路径
+    const items: Item[] = [
+      ...batch(39, 'invest', { savedDaysAgoStart: 85, savedDaysAgoEnd: 5 }),
+      ...batch(22, 'ai_app', { savedDaysAgoStart: 85, savedDaysAgoEnd: 5 }),
+      ...batch(17, 'ai_eng', { savedDaysAgoStart: 85, savedDaysAgoEnd: 5 }),
+      ...batch(9,  'job',    { savedDaysAgoStart: 85, savedDaysAgoEnd: 5 }),
+      ...batch(7,  'test',   { savedDaysAgoStart: 85, savedDaysAgoEnd: 5 }),
+      ...batch(4,  'tool',   { savedDaysAgoStart: 85, savedDaysAgoEnd: 5 }),
+      ...batch(4,  'misc',   { savedDaysAgoStart: 85, savedDaysAgoEnd: 5 }),
+      ...batch(3,  'life',   { savedDaysAgoStart: 85, savedDaysAgoEnd: 5 }),
+    ]
+    const cards = computeAllIdentities(items, undefined, NOW)
+    const radius = cards.find((c) => c.dimension === 'radius')
+    expect(radius?.id).toBe('generalist')
+  })
+
   it('30 天 vs 60-90 天主题集合差异大 → SWITCHER 跳跃者', () => {
     // 60-90 天主题 X/Y/Z 各 5 条；30 天前主题 A/B/C 各 5 条（重合 0%）
     const oldX = batch(5, 'X', { savedDaysAgoStart: 88, savedDaysAgoEnd: 60 })
