@@ -46,8 +46,35 @@ function speedPoints(item: Item): number {
   return 0
 }
 
-/** 主入口：算一条 item 的参与度。纯函数，无副作用。 */
-export function scoreItem(item: Item): EngagementResult {
+// v0.1.2 · Chrome 访问加分 · 解决"兴趣地图全虚线 vs §3 真热情之林"跨视图矛盾
+//   背景: pending 状态 item 在 Chord 内得 0 分 → 兴趣地图全显"基本未动"
+//         但用户在 Chrome 里实际打开过该 url （visitCount > 0）
+//         §3 用 reallyUsedRate (chip OR visitCount > 0 OR lastVisitedAt < 90d) 算出 79% 真热情
+//         两个视图给出完全相反结论，用户混乱
+//   修法: 让 scoreItem 接受可选的 visitCount，pending 但真访问过的 item 也给分
+//        score 跟 chip='实际用到了' (30) 同档：访问 ≥ 5 次 = 30 / ≥ 2 次 = 15 / 仅 1 次 = 5
+//        + chrome.history 90 天内访问 = 5 分 lastVisitedAt 触发
+const VISIT_BONUS_HIGH = 30   // visit ≥ 5
+const VISIT_BONUS_MID = 15    // visit ≥ 2
+const VISIT_BONUS_LOW = 5     // visit = 1
+const RECENT_VISIT_BONUS = 5  // lastVisitedAt 90 天内
+
+function visitPoints(visitCount?: number, lastVisitedAt?: number, now?: number): number {
+  let pts = 0
+  if (visitCount != null) {
+    if (visitCount >= 5) pts = VISIT_BONUS_HIGH
+    else if (visitCount >= 2) pts = VISIT_BONUS_MID
+    else if (visitCount >= 1) pts = VISIT_BONUS_LOW
+  }
+  if (lastVisitedAt != null && now != null && now - lastVisitedAt < 90 * 86_400_000) {
+    pts += RECENT_VISIT_BONUS
+  }
+  return pts
+}
+
+/** 主入口：算一条 item 的参与度。纯函数，无副作用。
+ *  v0.1.2 · visitCount/now 是可选注入，让 Chrome 访问加分跟 §3 reallyUsedRate 口径对齐 */
+export function scoreItem(item: Item, visitCount?: number, now?: number): EngagementResult {
   let score = DECISION_BASE[item.status] ?? 0
 
   // chip 加分（仅当 used 状态时）
@@ -65,6 +92,9 @@ export function scoreItem(item: Item): EngagementResult {
 
   // 决策速度
   score += speedPoints(item)
+
+  // v0.1.2 · Chrome 访问加分（不论 status，pending 也算）
+  score += visitPoints(visitCount, item.lastVisitedAt, now)
 
   const final = Math.min(100, Math.max(0, score))
   return { score: final, level: levelOf(final) }

@@ -8,6 +8,7 @@ import type { TerrainType } from '@chord/core'
 const adapter = new ChromeStorageAdapter()
 const allClusters = signal<Cluster[]>([])
 const allItems = signal<Item[]>([])
+const visitCounts = signal<Map<string, number>>(new Map())
 const userIntents = signal<ClusterUserIntent[]>([])
 const loading = signal(true)
 const clustering = signal(false)
@@ -99,7 +100,7 @@ const TERRAIN_LABEL_PROFILE: Record<TerrainType, string> = {
   middle: '',
 }
 
-function computeClusterStats(c: Cluster, items: Item[]): ClusterStats {
+function computeClusterStats(c: Cluster, items: Item[], visits: Map<string, number>): ClusterStats {
   const ids = new Set(c.itemIds)
   const members = items.filter((i) => ids.has(i.id))
   const now = Date.now()
@@ -124,11 +125,16 @@ function computeClusterStats(c: Cluster, items: Item[]): ClusterStats {
     : null
 
   // engagement
+  // v0.1.2 · 注入 visitCounts · pending 但有 Chrome 真访问也给分（跟 §3 reallyUsedRate 口径对齐）
+  //   修矛盾: 兴趣地图全虚线"基本未动" vs §3 显示 79% 真热情之林
   let scoreSum = 0
   let scoreCount = 0
   for (const m of members) {
-    const s = m.engagementScore ?? (m.status === 'pending' ? null : EngagementService.scoreItem(m).score)
-    if (s != null) { scoreSum += s; scoreCount++ }
+    const v = visits.get(m.id) ?? 0
+    const computed = EngagementService.scoreItem(m, v, now).score
+    // cache 优先，但 cache 没考虑 visit；取 max 避免 cache 把 visit 加分覆盖掉
+    const s = m.engagementScore != null ? Math.max(m.engagementScore, computed) : computed
+    if (s > 0) { scoreSum += s; scoreCount++ }
   }
   const avgEngagement = scoreCount > 0 ? scoreSum / scoreCount : 0
   const engagementLevel: ClusterStats['engagementLevel'] =
@@ -146,9 +152,8 @@ function computeClusterStats(c: Cluster, items: Item[]): ClusterStats {
   const isRealPassion = engagementLevel === 'deep' || rate >= 0.6
 
   // v3.1.29 · 同时算 InterestState（向后兼容）和 TerrainType（新主信号）
-  // 注：TerrainClassifier 需要 visitCounts，这里 cluster 角标渲染时 visitCounts 还没 wire；
-  //     暂传 undefined。后续 wire 实时 visit 数据时改这里。
-  const terrainResult = TerrainClassifier.classifyTerrain({ items: members })
+  // v0.1.2 · 接通 visitCounts → §3 跟兴趣地图同源
+  const terrainResult = TerrainClassifier.classifyTerrain({ items: members, visitCounts: visits, now })
 
   return {
     cluster: c,
@@ -181,7 +186,7 @@ const visibleClusters = computed(() => {
 })
 
 const visibleStats = computed<ClusterStats[]>(() =>
-  visibleClusters.value.map((c) => computeClusterStats(c, allItems.value)),
+  visibleClusters.value.map((c) => computeClusterStats(c, allItems.value, visitCounts.value)),
 )
 
 function findUserIntent(clusterName: string): ClusterUserIntent | null {
@@ -214,6 +219,12 @@ export function Terrain() {
         allItems.value = items
         userIntents.value = intents
         allClusters.value = c    // 立刻渲染：即使 cluster 是旧的（algoVersion 过期）也比白屏强
+        // v0.1.2 · 拉 chrome.history visit 数据让兴趣地图 engagement 跟 §3 reallyUsedRate 同源
+        try {
+          visitCounts.value = await ChromeStorageAdapter.getVisitCounts(items.map((i) => ({ id: i.id, url: i.url })))
+        } catch (e) {
+          console.warn('[Chord] Terrain getVisitCounts failed:', e)
+        }
         return { c, s, items }
       } catch (e) {
         console.error('[Chord] Terrain phase 1 failed:', e)

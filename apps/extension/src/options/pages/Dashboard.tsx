@@ -2,7 +2,7 @@ import { useEffect } from 'preact/hooks'
 import { signal } from '@preact/signals'
 import type { Item, UserSettings } from '@chord/types'
 import { ChromeStorageAdapter } from '../../storage/ChromeStorageAdapter.js'
-import { ClusterService, buildEngine, ClusterBucketService } from '@chord/core'
+import { ClusterBucketService } from '@chord/core'
 import { ChordIcon } from '../../components/ChordIcon.js'
 import { Favicon } from '../../components/Favicon.js'
 
@@ -25,9 +25,10 @@ function loadReclusterStatus() {
 
 export function Dashboard() {
   useEffect(() => {
-    load()
+    load(true)  // v3.1.32 · 首次 load 才显示 loading state（避免后续 onChange 触发的 reload 闪烁）
     loadReclusterStatus()
     // 只在 items 变化时 reload；忽略 settings/migration 等其他 storage key 的变化，避免迁移时反复触发 load()
+    // v3.1.32 · reload 不传 isInitial → 保持老数据 + 静默替换（stale-while-revalidate 模式）
     const offItems = adapter.onChange((key) => { if (key === 'chord_items') load() })
     // 订阅 recluster 状态变化（sw 后台跑成功/失败时）
     const onStorage = (changes: { [k: string]: chrome.storage.StorageChange }) => {
@@ -40,8 +41,12 @@ export function Dashboard() {
     }
   }, [])
 
-  async function load() {
-    loading.value = true
+  async function load(isInitial = false) {
+    // v3.1.32 · stale-while-revalidate: 首次加载才显示"加载中"loading state；
+    //   后续 onChange 触发的 reload 保持老数据 + 静默替换，避免列表闪烁。
+    //   背景: 首次安装 200 条书签 → onCreated × 200 次 → onChange × 200 次 → load × 200 次
+    //         如果每次都 loading=true 用户看到列表疯狂闪烁
+    if (isInitial) loading.value = true
     // Dashboard 不再阻塞在 cluster 上——cluster 由 Terrain 页/SW 后台跑
     // 这里只读 items + settings + 渲染节奏；用现成的 item.cluster 字段做分组（可能是旧 cluster 名，但用户能看到内容）
     try {
@@ -61,19 +66,18 @@ export function Dashboard() {
 
       settings.value = s
 
-      // 如果 cluster 需要刷新，后台 fire-and-forget 跑——不阻塞 Dashboard 渲染
-      // 完成后 items 字段会更新，Dashboard 通过 onChange 监听 chord_items 自动 reload
-      if (all.length >= 15) {
-        ClusterService.shouldRecluster(adapter).then((needs) => {
-          if (needs) ClusterService.recluster(adapter, buildEngine(s.aiEngine)).catch((e) => {
-            console.warn('[Chord] background recluster failed:', e)
-          })
-        }).catch(() => {})
-      }
+      // v3.1.32 · 删除 Dashboard 自动触发 recluster
+      //   背景: Dashboard 自己调 ClusterService.recluster 完全绕过 sw 的 chord_recluster_status
+      //         管理 (sw 在 line 366/376/380 正确设 running 状态机)，导致两个问题:
+      //         ① 首次安装"正在分析 198 条收藏"横幅永不消失 (Dashboard 触发的 recluster 不写 running=false)
+      //         ② Dashboard onChange 触发的 reload 又触发 recluster → 反馈循环 (跟 Dashboard 闪烁同源)
+      //   修法: cluster 完全由 sw 管理 (sw 在 bookmarks.onCreated 时会 scheduleBackgroundRecluster
+      //         debounced 1 分钟自动跑，并正确写 chord_recluster_status)
+      //   用户主动重算入口仍保留 (Terrain / Settings 页面的按钮)
     } catch (e) {
       console.error('[Chord] Dashboard.load failed:', e)
     } finally {
-      loading.value = false
+      if (isInitial) loading.value = false
     }
   }
 
