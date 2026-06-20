@@ -39,6 +39,13 @@ async function refreshBadge() {
 
   const items = await adapter.getItems({ status: ['pending', 'kept'], type: ['content'] })
   const visitCounts = await ChromeStorageAdapter.getVisitCounts(items.map((i) => ({ id: i.id, url: i.url })))
+  // v3.1.32 · 把 visitCounts 快照存 chrome.storage.local，给 chord:diag-terrain Node 脚本读
+  //   {[itemId]: visitCount, _ts: 时间戳}
+  try {
+    const snapshot: Record<string, number | string> = { _ts: String(Date.now()) }
+    for (const [id, v] of visitCounts) snapshot[id] = v
+    chrome.storage.local.set({ chord_visitcounts_cache: snapshot })
+  } catch {/* 缓存失败不影响主流程 */}
   const ready = EchoIndexService.countReadyToEcho(items, visitCounts)
 
   if (ready === lastBadgeCount) return   // 没变化，省一次 chrome API 调用
@@ -147,17 +154,31 @@ chrome.runtime.onStartup.addListener(async () => {
 
 // SW 启动时清掉「卡住的 recluster_status」
 // MV3 SW 生命周期：跑 recluster 期间 SW 可能被回收，{ running: true } 的 status 永远写不到 { running: false }
-// 用户看到「正在分析…」横幅永远不消失。SW 重启时如果发现 running=true 且 elapsed > 3 × eta，必然是 stale
+// 用户看到「正在分析…」横幅永远不消失
+//
+// v0.1.2 · 改成"无条件清"——SW 重启 = 前一个 task 必死（fire-and-forget promise 跟 JS context 一起没了）
+//          之前用 elapsed > 3×eta 阈值，CWS 用户实测仍会卡在 banner（eta 估的 30s 太短，elapsed 始终在阈值内来回弹）
 async function clearStaleReclusterStatus() {
   const data = await chrome.storage.local.get('chord_recluster_status')
-  const s = data['chord_recluster_status'] as { running?: boolean; startedAt?: number; estimatedSeconds?: number } | undefined
+  const s = data['chord_recluster_status'] as { running?: boolean; startedAt?: number } | undefined
   if (!s?.running) return
-  const elapsed = s.startedAt ? Date.now() - s.startedAt : Infinity
-  const timeout = (s.estimatedSeconds ?? 60) * 3 * 1000
-  if (elapsed > timeout) {
-    await chrome.storage.local.remove('chord_recluster_status')
-    console.log(`[Chord] cleared stale recluster_status (elapsed ${Math.round(elapsed / 1000)}s > 3×eta ${Math.round(timeout / 1000)}s)`)
-  }
+  await chrome.storage.local.remove('chord_recluster_status')
+  const elapsed = s.startedAt ? Math.round((Date.now() - s.startedAt) / 1000) : 0
+  console.log(`[Chord] SW 启动 · 清掉 stale recluster_status (elapsed ${elapsed}s; SW 重启等于前 task 必死)`)
+}
+
+// v0.1.2 · keepalive · 让 SW 在跑 recluster 期间保持活跃
+//   背景: MV3 SW 在没有活跃 listener 时 30 秒被回收；fire-and-forget 的 promise 跟 JS context 一起死
+//   做法: 每 20 秒访问 chrome.runtime / chrome.storage 重置 SW 的回收计时器
+let keepaliveTimer: ReturnType<typeof setInterval> | null = null
+function startReclusterKeepalive() {
+  if (keepaliveTimer) return
+  keepaliveTimer = setInterval(() => {
+    chrome.runtime.getPlatformInfo().catch(() => {})  // 任何 chrome API 调用都能重置计时器
+  }, 20_000)
+}
+function stopReclusterKeepalive() {
+  if (keepaliveTimer) { clearInterval(keepaliveTimer); keepaliveTimer = null }
 }
 
 /** v3.1.28-2 · savedAt v2 修复 · 解决 import 时 dateAdded 丢失导致全部 savedAt = import 时间的 bug
@@ -354,6 +375,22 @@ async function maybeRunBackgroundRecluster(opts: { force?: boolean } = {}) {
     const eta = estimateReclusterSeconds(items.length, mode)
     console.log(`[Chord] starting background recluster: ${items.length} items, mode=${mode}, eta≈${eta}s`)
 
+    // v0.1.3 · 预先 build engine——MissingApiKeyError 在这里同步抛出
+    //   背景: 用户选了 AI provider 但没填 key → buildEngine 之前静默 fallback tfidf, 写一堆怪 cluster
+    //   现在: 抛错 → 写 lastError, 保留旧 cluster, banner 红色提示用户去填 key
+    let engine
+    try {
+      engine = buildEngine(settings.aiEngine)
+    } catch (e) {
+      console.warn('[Chord] buildEngine failed, skip recluster:', e)
+      await setReclusterStatus({
+        running: false,
+        lastError: (e as Error).message?.slice(0, 200),
+        lastCompletedAt: Date.now(),
+      })
+      return
+    }
+
     // 写状态：UI 可以订阅展示进度
     await setReclusterStatus({
       running: true,
@@ -362,8 +399,10 @@ async function maybeRunBackgroundRecluster(opts: { force?: boolean } = {}) {
       estimatedSeconds: eta,
     })
 
+    // v0.1.2 · 起 keepalive · 防止 MV3 SW 30s 空闲被回收导致 recluster 半路死掉
+    startReclusterKeepalive()
     // 真正的 fire-and-forget：不 await，不阻塞 message handler
-    ClusterService.recluster(adapter, buildEngine(settings.aiEngine))
+    ClusterService.recluster(adapter, engine)
       .then(() => {
         console.log('[Chord] background recluster done')
         setReclusterStatus({ running: false, lastCompletedAt: Date.now() })
@@ -371,6 +410,9 @@ async function maybeRunBackgroundRecluster(opts: { force?: boolean } = {}) {
       .catch((e) => {
         console.warn('[Chord] background recluster failed:', e)
         setReclusterStatus({ running: false, lastError: (e as Error).message?.slice(0, 200), lastCompletedAt: Date.now() })
+      })
+      .finally(() => {
+        stopReclusterKeepalive()
       })
   } catch (e) {
     console.warn('[Chord] maybeRunBackgroundRecluster check failed:', e)
@@ -553,10 +595,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   // 更新 streak
   await StreakService.checkAndUpdateStreak(adapter, settings)
 
-  // 检查是否需要重新聚类
-  if (await ClusterService.shouldRecluster(adapter)) {
-    ClusterService.recluster(adapter, buildEngine(settings.aiEngine)).catch(console.error)
-  }
+  // 检查是否需要重新聚类（v0.1.2 · 走 maybeRunBackgroundRecluster 统一管 status + keepalive）
+  maybeRunBackgroundRecluster()
 })
 
 // ─── 通知点击 ────────────────────────────────────────────────
@@ -623,6 +663,15 @@ chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
   if (message['type'] === 'PAGE_OPENED') {
     // Options / Popup 任何页面打开都触发——确保用户进任何页面都能看到最新分类
     maybeRunBackgroundRecluster()
+    return false
+  }
+
+  // v0.1.3 · 用户切了 AI provider → ChromeStorageAdapter 已清掉旧 cluster, 这里跳防抖立刻重跑
+  if (message['type'] === 'AI_PROVIDER_CHANGED') {
+    const { from, to } = message as { from: string; to: string }
+    console.log(`[Chord] AI provider 切换: ${from} → ${to} · 清防抖 + 强制重跑`)
+    lastImmediateReclusterAt = 0  // 清防抖戳, 让 maybeRunBackgroundRecluster 不被 5min 锁住
+    maybeRunBackgroundRecluster({ force: true })
     return false
   }
 
