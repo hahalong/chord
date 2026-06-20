@@ -998,13 +998,15 @@ export const SHARED_CSS = `
 .ob-prov { position:relative;padding:14px 16px;border-radius:12px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;transition:all 200ms;font-family:inherit;text-align:left;display:flex;flex-direction:column;gap:4px; }
 .ob-prov:hover { border-color:var(--rose-md);background:var(--rose-lt); }
 .ob-prov-active { border-color:var(--rose);background:var(--rose-lt); }
-.ob-prov-name { font-size:14px;font-weight:600;color:var(--text); }
-.ob-prov-tag { font-size:12px;color:var(--text-md); }
-.ob-prov-signup { position:absolute;top:14px;right:16px;font-size:11px;color:var(--rose);text-decoration:none; }
+/* v0.1.2 · 给标题/副文字行右侧预留 56px 给「注册 →」，「免费」徽章不再被压住 */
+.ob-prov-name { font-size:14px;font-weight:600;color:var(--text);padding-right:56px;line-height:1.4; }
+.ob-prov-tag { font-size:12px;color:var(--text-md);padding-right:56px; }
+.ob-prov-signup { position:absolute;top:14px;right:16px;font-size:11px;color:var(--rose);text-decoration:none;font-weight:500;white-space:nowrap; }
 .ob-prov-signup:hover { text-decoration:underline; }
 .ob-key-input { width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border2);background:var(--card);font-family:'DM Mono',monospace;font-size:13px;color:var(--text);outline:none;margin-bottom:8px;box-sizing:border-box; }
 .ob-key-input:focus { border-color:var(--rose); }
-.ob-hint { font-size:11px;color:var(--text-lt);margin-bottom:18px;text-align:left; }
+/* v0.1.2 · 颜色从 text-lt 提到 text-md，加大字号——之前太淡用户看不见 */
+.ob-hint { font-size:12px;color:var(--text-md);margin-bottom:18px;text-align:left;line-height:1.5; }
 .ob-actions { display:flex;gap:10px;justify-content:flex-end; }
 .ob-skip { padding:10px 18px;border-radius:10px;border:1px solid var(--border2);background:var(--card);font-family:inherit;font-size:13px;color:var(--text-md);cursor:pointer; }
 .ob-skip:hover { border-color:var(--text-md); }
