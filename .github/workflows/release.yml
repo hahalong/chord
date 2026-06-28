@@ -1,0 +1,72 @@
+name: Release
+
+# 触发: 推 git tag v*.*.* 时自动跑 (例: git tag v1.1.0 && git push --tags)
+# 也可在 Actions 页面手动触发 (workflow_dispatch)
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.1.0)'
+        required: true
+
+permissions:
+  contents: write  # 创建 release 需要
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Inject bundled AI key
+        # Chord 内置 AI 用智谱 GLM-4-Flash, key 走 Secrets 不暴露
+        # Repo Settings → Secrets and variables → Actions 加 VITE_CHORD_BUNDLED_AI_KEY
+        run: |
+          echo "VITE_CHORD_BUNDLED_AI_KEY=${{ secrets.VITE_CHORD_BUNDLED_AI_KEY }}" > apps/extension/.env.local
+
+      - name: Test + Build
+        run: pnpm test:all
+
+      - name: Pack chord.zip (固定名 · README latest 链接指向这个)
+        run: |
+          cd apps/extension/dist
+          zip -rq ../../../chord.zip . -x "*.map" "*.DS_Store"
+          cd ../../..
+          ls -lh chord.zip
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: ${{ steps.tag.outputs.name }}
+          generate_release_notes: true   # 自动从 commit / PR 生成 changelog
+          files: |
+            chord.zip
+          fail_on_unmatched_files: true
