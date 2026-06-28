@@ -70,44 +70,118 @@ const ENDPOINT = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
 const MODEL = 'glm-4-flash'
 
 // ─── AI 调用 ──────────────────────────────────────────
+// v1.1 · 分 batch 跑 · 跟生产 OpenAICompatibleEngine.cluster() 的 batching 对齐
+//   背景: 单 batch 175 条 + intent prompt → GLM-4-Flash 注意力稀释, 准确率 64% (退化)
+//         分 30 条/batch 跑 → 82.3% (跟生产实际表现对齐)
+const BATCH_SIZE = 30
+
+// v1.1 · label normalize · 跟生产 OpenAICompatibleEngine.normalizeL1Label 对齐
+//   实测 GLM-4-Flash 有时省略中文里的空格 (AI工程与论文 vs AI 工程与论文)
+function normalizeL1Label(label) {
+  if (!label) return ''
+  if (L1_NAMES.includes(label)) return label
+  const stripped = label.replace(/\s+/g, '')
+  for (const n of L1_NAMES) {
+    if (n.replace(/\s+/g, '') === stripped) return n
+  }
+  return label
+}
+
+// v1.1.1 · 并行跑所有 batch · 跟生产 OpenAICompatibleEngine.cluster() Promise.all 对齐
+//   背景: 200 条串行 7 batch ≈ 90s 太慢, 用户反馈"等很久"
+//         智谱 API 支持并发, Promise.all 同时发请求, 总时间 ≈ 最慢 batch
 async function classifyL1(items) {
-  // ⚠️ 此 prompt 必须与 packages/core/src/ai/OpenAICompatibleEngine.ts 的 cluster() 保持一致
+  const batches = []
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    batches.push(items.slice(i, i + BATCH_SIZE))
+  }
+  console.log(`  并行启动 ${batches.length} 个 batch (${BATCH_SIZE} items/batch) ...`)
+  const tStart = Date.now()
+  const batchResults = await Promise.all(
+    batches.map(async (batch, bi) => {
+      const t0 = Date.now()
+      const parsed = await classifyOneBatch(batch)
+      console.log(`    batch ${bi + 1}/${batches.length} 完成 ${Math.round((Date.now() - t0) / 1000)}s, ${parsed.length} 条`)
+      return parsed
+    }),
+  )
+  console.log(`  全部 ${batches.length} batch 完成 ${Math.round((Date.now() - tStart) / 1000)}s`)
+  const all = []
+  batchResults.forEach((batchParsed, bi) => {
+    const offset = bi * BATCH_SIZE
+    for (const r of batchParsed) {
+      all.push({ i: r.i + offset, label: normalizeL1Label(r.label) })
+    }
+  })
+  return all
+}
+
+async function classifyOneBatch(items) {
+  // ⚠️ 此 prompt 必须与 packages/core/src/ai/OpenAICompatibleEngine.ts 的 classifyBatch() 保持一致
   // 否则评测的不是生产代码行为
+  // v1.1 · 切换到 intent-based prompt + few-shot (实测 +8% 整体, BC-014 边界 case 33%→89%)
   const list = items.map((it, i) => `${i}. ${it.title} (${it.sourceDomain})`).join('\n')
-  const prompt = `把下面 ${items.length} 条收藏归到以下 10 个预定义类别中的**一个**。
+  const prompt = `把下面 ${items.length} 条收藏归到 10 个预定义类别中的一个。请按"用户保存这条时的真实意图"来判断，不要被标题里的关键词带偏。
 
-⚠️ 约束：
-- 每条只能选 1 个类别（多义内容选最主要的那个）
-- 不要新建类别，必须从下面 10 个里选
+类别定义（按意图描述，不按关键词）：
+
+1. **AI 应用与工具** — 用户想"用"一个 AI 产品（终端体验者视角）。ChatGPT、Claude.ai、即梦、椒图、ComfyUI 这种网站/应用。
+2. **AI 工程与论文** — 用户想"学/搭" AI 系统（开发者/研究者视角）。论文、模型训练、Agent 框架代码、Prompt 工程教程。
+3. **投资与金融市场** — 用户想"做投资决策"。个股估值、ETF、券商工具、宏观策略、上市公司财报分析。
+4. **测试与面试** — 用户"在准备一场面试"。题库、攻略、面经、备考计划、模拟系统。
+5. **编程与软件开发** — 用户"在学非 AI 技术"。编程语言、框架、性能、CS 课程、技术博客（CSDN/掘金/知乎技术专栏等）。
+6. **半导体与硬科技** — 用户"在研究硬科技产业链"。芯片设备、半导体设备、人形机器人产业链、光通信光模块、新能源产业研报——看产业逻辑、看上下游、看技术路线。
+7. **工具型入口** — 用户"打开就要办事"的服务。VPN、SMS、激活密钥、API Key 控制台、云服务管理后台（Cloudflare/AWS dashboard）、开发者后台。不是用来读的，是用来配置/操作的。
+8. **招聘信息** — 用户"在找工作"。招聘公告、JD、Offer 比较、校招、人才博览会方案。
+9. **个人创作与生活** — 用户"在消费个人化内容"。博客、随笔、旅行、影视、设计素材库、文化平台。
+10. **其他** — 标题信息太少，无法判断意图（"公众号" 这种纯无后缀 / localhost / 乱码）。**极度严格**——只要能从标题或域名推断主题，就归对应类，不要塞这里。
+
+边界判断的关键原则：
+- 含 "AI / 机器人 / Token / Agent" 这种词不一定归 AI 类——看**用户的目的**
+- 投研报告即使标的是 AI 公司也归 **投资** 或 **半导体硬科技**，不是 AI 类
+- 云服务管理后台（即使含 AI 词）归 **工具型入口**，不是 AI 类
+- 备考资料归 **测试与面试**，即使涉及 AI 岗位
+- **上市公司年报 / 深度研究报告 + 标的是硬科技公司** → 半导体与硬科技（不是 invest，因为意图是看产业不是炒股）
+- **市场情报机构 (TrendForce/IDC/Gartner)** → 投资与金融市场（市场数据用于交易决策），跟"产业链分析"(hardtech) 是两回事
+- **开源 AI 项目 (ComfyUI/langfuse/Comfy-Org 这种 GitHub repo)** → AI 工程与论文（开发者视角阅读源码 / README）
+- **开发者教程 / 在线学院课程 (Claude Code 橙皮书 / OpenAI 课程 / DeepLearning.AI)** → AI 工程与论文（学技术）
+- **AI 产品拆解档案 / 产品分析研究** → AI 工程与论文（研究者视角研究产品如何做的）
+- **轻量自部署开发工具 (qps-battle/小压测网站)** → 编程与软件开发（开发场景用的小工具，不是 utility 那种 "VPN/激活/支付"）
+
+边界 case 示例（few-shot）：
+
+- **「CBRS Stock Analysis: Cerebras IPO Investment Research Report」** → **半导体与硬科技**
+  理由: 含 AI 词但意图是看半导体公司 IPO/投资分析，不是学 AI 技术
+- **「Workers & Pages | Cloudflare」** → **工具型入口**
+  理由: Cloudflare 管理后台，用户去配置 service，不是读教程
+- **「贵州人才博览会｜岗位1001 网络安全预警与网络空间综合治理 · 7天备考计划」** → **测试与面试**
+  理由: 备考计划 = 准备面试，不是看招聘信息
+- **「贵州人才博览会引才工作方案」** → **招聘信息**
+  理由: 招聘方案 = 看招聘信息，跟备考不同
+- **「MetaGPT: The Multi-Agent Framework」** → **AI 工程与论文**
+  理由: 开发者读 Agent 框架文档，是技术学习，归 AI 工程
+- **「Claude AI 工程师面试攻略」** → **测试与面试**
+  理由: 含 Claude/AI 但意图是准备面试
+- **「人形机器人全产业链投研报告」** → **半导体与硬科技**
+  理由: 产业链投研，看产业逻辑，不是 AI 应用也不是单纯投资
+- **「华为昇腾芯片生态 · 深度投资研究报告 2026」** → **半导体与硬科技**
+  理由: 虽然写"投资研究报告"，但标的是芯片产业生态，意图是看产业不是炒股
+- **「Global Market Intelligence | TrendForce」** → **投资与金融市场**
+  理由: 市场情报机构，数据用于交易决策，跟产业链分析不同
+- **「Comfy-Org/ComfyUI: diffusion model GUI with graph/nodes interface」** → **AI 工程与论文**
+  理由: 开源 AI 项目 GitHub repo，开发者视角看源码 / README
+- **「真开源！Claude Code 75页橙皮书」** → **AI 工程与论文**
+  理由: 开发者教程，学 Claude Code 编程，不是用 Claude 产品
+- **「AI 产品拆解档案馆」** → **AI 工程与论文**
+  理由: 研究 AI 产品如何做，是研究者视角，不是用产品
+
+注意：
+- 每条只选 1 个类别，必须从上面 10 个里选
 - 返回时 i 必须从 0 到 ${items.length - 1} 每个出现且只出现一次
+- 不要新建类别
+- **必须包含 reason 字段（10-30 字简短说明判断理由）**——让你"先想清楚再选"，不是事后解释
 
-类别清单：
-${L1_LIST_FORMATTED}
-
-判断思路（**看用户保存这条是想做什么，不是匹配关键词**）：
-
-每个类别背后的「用户意图」：
-- **测试与面试** = 用户**正在准备一场面试**（任何岗位都算——AI 工程师、PM、QA、销售都是）。题库、攻略、面经、Interview Guide、模拟系统都属于
-- **AI 工程与论文** = 用户在**学 AI 技术、读 AI 论文、搭 AI 系统**（开发者/研究者视角）
-- **AI 应用与工具** = 用户在**用 AI 产品**（终端体验者，不是开发者）
-- **编程与软件开发** = 用户在**学非 AI 的技术**（Java/Kafka/性能调优/CS 课程）
-- **半导体与硬科技** = 用户在**研究硬科技产业链**（看产业逻辑，不是炒股）
-- **投资与金融市场** = 用户在**做投资决策**（个股/ETF/估值/交易工具）
-- **工具型入口** = 用户**只是要打开就用**的服务（VPN/SMS/激活/控制台），不需要阅读
-- **招聘信息** = 用户在**找工作**（看招聘公告/JD/Offer 比较）——**不是准备面试**
-- **个人创作与生活** = 用户在**消费个人化内容**（个人博客/旅行/影视娱乐）
-- **其他** = 标题信息太少，无法判断意图（localhost、纯"公众号"、不明链接）
-
-边界示例（同一域名/同一品牌下，根据意图归到不同类）：
-- 「Claude AI 工程师面试攻略」→ 准备面试 → 测试与面试
-- 「Claude API 入门教程」→ 学 Claude → AI 工程与论文
-- 「Claude.ai 产品介绍」→ 体验产品 → AI 应用与工具
-- 「半导体行业 2026 投资策略」→ 投资 → 投资与金融市场
-- 「半导体设备产业深度研报」→ 看产业 → 半导体与硬科技
-
-同义词都算：「面试 / Interview / 面经」「投资 / 财报 / 估值 / Earnings」「招聘 / JD / Offer」
-
-返回 JSON 数组：[{"i":0,"label":"AI 应用与工具"}, ...]
+返回 JSON 数组（i / label / reason 三字段）：[{"i":0,"label":"AI 应用与工具","reason":"AI 产品体验"}, ...]
 
 收藏列表：
 ${list}
@@ -117,8 +191,8 @@ ${list}
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${AI_KEY}` },
-    // CR-028 评测：temperature 0 保证确定性（同一 prompt 同一结果），max_tokens 8192 跟生产对齐
-    body: JSON.stringify({ model: MODEL, messages: [{ role: 'user', content: prompt }], max_tokens: 8192, temperature: 0 }),
+    // v1.1: 30 条/batch · max_tokens 2048 足够 · 跟生产 OpenAICompatibleEngine.classifyBatch() 对齐
+    body: JSON.stringify({ model: MODEL, messages: [{ role: 'user', content: prompt }], max_tokens: 2048, temperature: 0 }),
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`)
   const data = await res.json()

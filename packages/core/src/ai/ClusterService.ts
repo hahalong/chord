@@ -128,44 +128,12 @@ export async function recluster(
     }
   })
 
-  // 第二遍：意图子簇拆分
-  // 每个 cluster 内若 aspire 占比 > 40% 且 aspire 数 ≥ 5，则把 aspire item 拆出成「[原名] · 渴望」独立 cluster
-  // 这样兴趣地形里能清晰看到「真实兴趣」和「自我叙事/渴望型保存」是两类不同的东西
-  // 注意：这是产品设计要求的"意图维度"分裂，不是算法层的 cluster 拆分（保留）
-  const clusters: Cluster[] = []
-  for (const c of rawClusters) {
-    const members = items.filter((i) => c.itemIds.includes(i.id))
-    const aspires = members.filter((i) => i.saveIntent === 'aspire')
-    const aspireRatio = members.length > 0 ? aspires.length / members.length : 0
-
-    if (aspires.length >= 5 && aspireRatio > 0.4) {
-      const remaining = members.filter((i) => i.saveIntent !== 'aspire')
-      const remainingProcessed = remaining.filter((i) => i.status === 'used' || i.status === 'released').length
-      const aspireProcessed = aspires.filter((i) => i.status === 'used' || i.status === 'released').length
-
-      if (remaining.length > 0) {
-        clusters.push({
-          ...c,
-          itemIds: remaining.map((i) => i.id),
-          processedCount: remainingProcessed,
-          totalCount: remaining.length,
-        })
-      }
-      clusters.push({
-        id: nanoid(),
-        name: `${c.name} · 渴望`,
-        itemIds: aspires.map((i) => i.id),
-        keywords: c.keywords,
-        processedCount: aspireProcessed,
-        totalCount: aspires.length,
-        updatedAt: now,
-        algoVersion: CLUSTER_ALGO_VERSION,
-        algorithm: usedAlgorithm,
-      })
-    } else {
-      clusters.push(c)
-    }
-  }
+  // v1.1.1 · 关闭意图拆分 · 一个 cluster 一个泡泡（简化视觉）
+  //   旧逻辑：aspire 占比 > 40% 且 aspire 数 ≥ 5 → 拆「[原名] · 渴望」独立 cluster
+  //   废弃理由：用户反馈"为什么会有两个相同的分类"——两个泡泡共存导致认知负担, aspire 关键词又偏宽松误判多
+  //   item.saveIntent 字段保留（hover card / Profile §2 数字反差 / DramaticInsight 仍在用）
+  //   只是不再产出独立 cluster 泡泡
+  const clusters: Cluster[] = rawClusters
 
   await adapter.putClusters(clusters)
 

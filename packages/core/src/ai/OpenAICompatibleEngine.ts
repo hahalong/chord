@@ -1,7 +1,19 @@
 import type { ClusterInput, ClusterResult, SaveIntent } from '@chord/types'
 import type { AIEngine, QuestionContext, IntentClassificationInput, IntentClassificationResult, PingResult } from './AIEngine.js'
 import { daysSince } from '../utils/date.js'
-import { L1_CATEGORIES, L1_NAME_SET, formatL1ListForPrompt } from './L1Categories.js'
+import { L1_CATEGORIES, L1_NAMES, L1_NAME_SET, formatL1ListForPrompt } from './L1Categories.js'
+
+// v1.1 · label normalize · 容忍 "AI 工程与论文" vs "AI工程与论文" 空格差异
+//   实测 GLM-4-Flash 有时省略中文里的空格, 导致 string match 失败造成假阴性
+function normalizeL1Label(label: string | undefined): string {
+  if (!label) return ''
+  if (L1_NAME_SET.has(label)) return label
+  const stripped = label.replace(/\s+/g, '')
+  for (const n of L1_NAMES) {
+    if (n.replace(/\s+/g, '') === stripped) return n
+  }
+  return label
+}
 
 interface Config {
   baseUrl: string
@@ -64,59 +76,125 @@ export class OpenAICompatibleEngine implements AIEngine {
   // 实测开放聚类准确率 ~20%（互斥违反 19% + 漏分 15% + cluster 名实不符 57%）
   // L1 分类同样数据集准确率 87%，互斥违反 0%，漏分 0%
   // 详见 产品文档/Chord_聚类质量诊断与L1方案.md
+  //
+  // v1.1 · 加分 batch · 解决 intent prompt 在单 batch 大输入下准确率退化
+  //   背景: 切到 intent prompt v2 后, GLM-4-Flash 单 batch 175 条 → 64%（不如 v1 硬规则 74%）
+  //         分 30 条/batch → 82.3%（v1 baseline +8%, BC-014 修复）
+  // v1.1.1 · 并行跑所有 batch · Promise.all
+  //   背景: 200 条串行 7 batch ≈ 90s 太慢, 用户截图反馈"等很久"
+  //         智谱 API 支持并发, Promise.all 同时发请求, 总时间 ≈ 最慢 batch ~15s
+  //   错误处理: 任一 batch 失败整体 throw（不静默 fallback 部分结果）
   async cluster(items: ClusterInput[], _count?: number): Promise<ClusterResult[]> {
+    // v1.1 · intent prompt 在 30 条/batch 下表现最稳定（实测）。比这大 GLM-4-Flash 注意力稀释
+    const BATCH_SIZE = 30
+    const batches: ClusterInput[][] = []
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      batches.push(items.slice(i, i + BATCH_SIZE))
+    }
+
+    // v1.1.1 · 并行: 所有 batch 同时调 API, Promise.all 等齐后合并
+    const batchResults = await Promise.all(
+      batches.map((batch, bi) => this.classifyBatch(batch, bi + 1, batches.length)),
+    )
+
+    // 累加 (全局 itemIndex, label) 跨 batch 合并
+    const allParsed: { i: number; label: string }[] = []
+    batchResults.forEach((batchParsed, bi) => {
+      const offset = bi * BATCH_SIZE
+      for (const r of batchParsed) {
+        allParsed.push({ i: r.i + offset, label: r.label })
+      }
+    })
+
+    return this.assembleClusters(items, allParsed)
+  }
+
+  // 单 batch 分类调用 · 失败直接 throw 不静默 fallback (CLAUDE.md §11 纪律)
+  private async classifyBatch(items: ClusterInput[], batchNum: number, totalBatches: number): Promise<{ i: number; label: string }[]> {
     const list = items
       .map((i, idx) => `${idx}. ${i.title} (${i.domain ?? ''})`)
       .join('\n')
 
-    const prompt = `把下面 ${items.length} 条收藏归到以下 10 个预定义类别中的**一个**。
+    // v1.1 · intent-based prompt（替换原硬规则路线）
+    // 实测对比（175 样本 v3 dataset, BC-014 9 条边界 case 含）:
+    //   智谱 GLM-4-Flash + 原硬规则:    74.3% (BC-014 3/9)
+    //   智谱 GLM-4-Flash + intent v2:   82.3% (BC-014 8/9) ← 默认 chord_bundled 直接受益 +8%
+    //   DeepSeek V4-Pro + intent v2:    86.3% (BC-014 8/9) ← 强模型天花板更高
+    // 详见 产品文档/Chord_聚类BadCase库.md BC-014 + run-eval-intent.mjs
+    const prompt = `把下面 ${items.length} 条收藏归到 10 个预定义类别中的一个。请按"用户保存这条时的真实意图"来判断，不要被标题里的关键词带偏。
 
-⚠️ 约束：
-- 每条只能选 1 个类别（多义内容选最主要的那个）
-- 不要新建类别，必须从下面 10 个里选
+类别定义（按意图描述，不按关键词）：
+
+1. **AI 应用与工具** — 用户想"用"一个 AI 产品（终端体验者视角）。ChatGPT、Claude.ai、即梦、椒图、ComfyUI 这种网站/应用。
+2. **AI 工程与论文** — 用户想"学/搭" AI 系统（开发者/研究者视角）。论文、模型训练、Agent 框架代码、Prompt 工程教程。
+3. **投资与金融市场** — 用户想"做投资决策"。个股估值、ETF、券商工具、宏观策略、上市公司财报分析。
+4. **测试与面试** — 用户"在准备一场面试"。题库、攻略、面经、备考计划、模拟系统。
+5. **编程与软件开发** — 用户"在学非 AI 技术"。编程语言、框架、性能、CS 课程、技术博客（CSDN/掘金/知乎技术专栏等）。
+6. **半导体与硬科技** — 用户"在研究硬科技产业链"。芯片设备、半导体设备、人形机器人产业链、光通信光模块、新能源产业研报——看产业逻辑、看上下游、看技术路线。
+7. **工具型入口** — 用户"打开就要办事"的服务。VPN、SMS、激活密钥、API Key 控制台、云服务管理后台（Cloudflare/AWS dashboard）、开发者后台。不是用来读的，是用来配置/操作的。
+8. **招聘信息** — 用户"在找工作"。招聘公告、JD、Offer 比较、校招、人才博览会方案。
+9. **个人创作与生活** — 用户"在消费个人化内容"。博客、随笔、旅行、影视、设计素材库、文化平台。
+10. **其他** — 标题信息太少，无法判断意图（"公众号" 这种纯无后缀 / localhost / 乱码）。**极度严格**——只要能从标题或域名推断主题，就归对应类，不要塞这里。
+
+边界判断的关键原则：
+- 含 "AI / 机器人 / Token / Agent" 这种词不一定归 AI 类——看**用户的目的**
+- 投研报告即使标的是 AI 公司也归 **投资** 或 **半导体硬科技**，不是 AI 类
+- 云服务管理后台（即使含 AI 词）归 **工具型入口**，不是 AI 类
+- 备考资料归 **测试与面试**，即使涉及 AI 岗位
+- **上市公司年报 / 深度研究报告 + 标的是硬科技公司** → 半导体与硬科技（不是 invest，因为意图是看产业不是炒股）
+- **市场情报机构 (TrendForce/IDC/Gartner)** → 投资与金融市场（市场数据用于交易决策），跟"产业链分析"(hardtech) 是两回事
+- **开源 AI 项目 (ComfyUI/langfuse/Comfy-Org 这种 GitHub repo)** → AI 工程与论文（开发者视角阅读源码 / README）
+- **开发者教程 / 在线学院课程 (Claude Code 橙皮书 / OpenAI 课程 / DeepLearning.AI)** → AI 工程与论文（学技术）
+- **AI 产品拆解档案 / 产品分析研究** → AI 工程与论文（研究者视角研究产品如何做的）
+- **轻量自部署开发工具 (qps-battle/小压测网站)** → 编程与软件开发（开发场景用的小工具，不是 utility 那种 "VPN/激活/支付"）
+
+边界 case 示例（few-shot）：
+
+- **「CBRS Stock Analysis: Cerebras IPO Investment Research Report」** → **半导体与硬科技**
+  理由: 含 AI 词但意图是看半导体公司 IPO/投资分析，不是学 AI 技术
+- **「Workers & Pages | Cloudflare」** → **工具型入口**
+  理由: Cloudflare 管理后台，用户去配置 service，不是读教程
+- **「贵州人才博览会｜岗位1001 网络安全预警与网络空间综合治理 · 7天备考计划」** → **测试与面试**
+  理由: 备考计划 = 准备面试，不是看招聘信息
+- **「贵州人才博览会引才工作方案」** → **招聘信息**
+  理由: 招聘方案 = 看招聘信息，跟备考不同
+- **「MetaGPT: The Multi-Agent Framework」** → **AI 工程与论文**
+  理由: 开发者读 Agent 框架文档，是技术学习，归 AI 工程
+- **「Claude AI 工程师面试攻略」** → **测试与面试**
+  理由: 含 Claude/AI 但意图是准备面试
+- **「人形机器人全产业链投研报告」** → **半导体与硬科技**
+  理由: 产业链投研，看产业逻辑，不是 AI 应用也不是单纯投资
+- **「华为昇腾芯片生态 · 深度投资研究报告 2026」** → **半导体与硬科技**
+  理由: 虽然写"投资研究报告"，但标的是芯片产业生态，意图是看产业不是炒股
+- **「Global Market Intelligence | TrendForce」** → **投资与金融市场**
+  理由: 市场情报机构，数据用于交易决策，跟产业链分析不同
+- **「Comfy-Org/ComfyUI: diffusion model GUI with graph/nodes interface」** → **AI 工程与论文**
+  理由: 开源 AI 项目 GitHub repo，开发者视角看源码 / README
+- **「真开源！Claude Code 75页橙皮书」** → **AI 工程与论文**
+  理由: 开发者教程，学 Claude Code 编程，不是用 Claude 产品
+- **「AI 产品拆解档案馆」** → **AI 工程与论文**
+  理由: 研究 AI 产品如何做，是研究者视角，不是用产品
+
+注意：
+- 每条只选 1 个类别，必须从上面 10 个里选
 - 返回时 i 必须从 0 到 ${items.length - 1} 每个出现且只出现一次
+- 不要新建类别
+- **必须包含 reason 字段（10-30 字简短说明判断理由）**——让你"先想清楚再选"，不是事后解释
 
-类别清单：
-${formatL1ListForPrompt()}
-
-判断思路（**看用户保存这条是想做什么，不是匹配关键词**）：
-
-每个类别背后的「用户意图」：
-- **测试与面试** = 用户**正在准备一场面试**（任何岗位都算——AI 工程师、PM、QA、销售都是）。题库、攻略、面经、Interview Guide、模拟系统都属于
-- **AI 工程与论文** = 用户在**学 AI 技术、读 AI 论文、搭 AI 系统**（开发者/研究者视角）
-- **AI 应用与工具** = 用户在**用 AI 产品**（终端体验者，不是开发者）
-- **编程与软件开发** = 用户在**学非 AI 的技术**（Java/Kafka/性能调优/CS 课程）
-- **半导体与硬科技** = 用户在**研究硬科技产业链**（看产业逻辑，不是炒股）
-- **投资与金融市场** = 用户在**做投资决策**（个股/ETF/估值/交易工具）
-- **工具型入口** = 用户**只是要打开就用**的服务（VPN/SMS/激活/控制台），不需要阅读
-- **招聘信息** = 用户在**找工作**（看招聘公告/JD/Offer 比较）——**不是准备面试**
-- **个人创作与生活** = 用户在**消费个人化内容**（个人博客/旅行/影视娱乐）
-- **其他** = 标题信息太少，无法判断意图（localhost、纯"公众号"、不明链接）
-
-边界示例（同一域名/同一品牌下，根据意图归到不同类）：
-- 「Claude AI 工程师面试攻略」→ 准备面试 → 测试与面试
-- 「Claude API 入门教程」→ 学 Claude → AI 工程与论文
-- 「Claude.ai 产品介绍」→ 体验产品 → AI 应用与工具
-- 「半导体行业 2026 投资策略」→ 投资 → 投资与金融市场
-- 「半导体设备产业深度研报」→ 看产业 → 半导体与硬科技
-
-同义词都算：「面试 / Interview / 面经」「投资 / 财报 / 估值 / Earnings」「招聘 / JD / Offer」
-
-返回 JSON 数组：[{"i":0,"label":"AI 应用与工具"}, ...]
+返回 JSON 数组（i / label / reason 三字段）：[{"i":0,"label":"AI 应用与工具","reason":"AI 产品体验"}, ...]
 
 收藏列表：
 ${list}
 
 只返回 JSON 数组，不要其他文字。`
 
-    // 输出 ~30 token/item × 166 items ≈ 5000 token；max 8192 留余量
+    // 30 条/batch · 每条 ~30 token output, max 2048 余量充足
     // temperature 0 让聚类确定性（同一收藏内容多次 recluster 得相同分类，回归测试可比）
     const { content: response, usage, finishReason } = await this.chat(
       [{ role: 'user', content: prompt }],
-      { maxTokens: 8192, temperature: 0 },
+      { maxTokens: 2048, temperature: 0 },
     )
 
-    let parsed: { i: number; label: string }[]
     try {
       const stripped = response.trim()
         .replace(/^```(?:json)?\s*\n?/i, '')
@@ -126,25 +204,26 @@ ${list}
       const lb = stripped.lastIndexOf(']')
       let tightRaw = fb >= 0 && lb > fb ? stripped.slice(fb, lb + 1) : stripped
       // 修 AI 长输出时的「偷懒」格式：{"i":N,"VALUE"} → {"i":N,"label":"VALUE"}
-      // GLM-4-Flash 在 ~160+ 条 batch 时偶尔会自动省略 "label": key（实测 5/18 触发）
       tightRaw = tightRaw.replace(/\{"i":(\d+),"([^"]+)"\}/g, '{"i":$1,"label":"$2"}')
       let p = recoverTruncatedJsonArray(tightRaw) as { i: number; label: string }[] | null
       if (!p && fb >= 0) {
-        // fallback：从 [ 开始截取（不掐尾），用同款 fix
         const lenient = stripped.slice(fb).replace(/\{"i":(\d+),"([^"]+)"\}/g, '{"i":$1,"label":"$2"}')
         p = recoverTruncatedJsonArray(lenient) as typeof p
       }
       if (!p) throw new Error('AI returned unparseable JSON')
-      parsed = p
 
       if (finishReason === 'length' || !response.trimEnd().endsWith(']')) {
-        console.warn('[Chord] AI L1 classification appears truncated. finish_reason=%s usage=%o', finishReason, usage)
+        console.warn(`[Chord] AI L1 batch ${batchNum}/${totalBatches} appears truncated. finish_reason=%s usage=%o`, finishReason, usage)
       }
+      return p
     } catch (e) {
-      console.warn('[Chord] AI L1 classification parse failed:', (e as Error).message, 'head=', response.slice(0, 200))
-      throw new Error('AI L1 classification parse failed: ' + (e as Error).message)
+      console.warn(`[Chord] AI L1 batch ${batchNum}/${totalBatches} parse failed:`, (e as Error).message, 'head=', response.slice(0, 200))
+      throw new Error(`AI L1 batch ${batchNum}/${totalBatches} parse failed: ` + (e as Error).message)
     }
+  }
 
+  // 合并跨 batch 结果到 cluster 列表 · 互斥兜底 + 漏标兜底
+  private assembleClusters(items: ClusterInput[], parsed: { i: number; label: string }[]): ClusterResult[] {
     // 把 (item, label) 对汇成 cluster；保留 L1_CATEGORIES 定义的顺序（让兴趣地形显示稳定）
     const itemsByLabel = new Map<string, ClusterInput[]>()
     const seenI = new Set<number>()
@@ -152,8 +231,10 @@ ${list}
       if (seenI.has(r.i)) continue              // 互斥兜底：重复打标只保留第一次
       if (r.i < 0 || r.i >= items.length) continue
       seenI.add(r.i)
-      // 非法 label 显式归到「其他」，避免遗漏
-      const label = L1_NAME_SET.has(r.label) ? r.label : '其他'
+      // v1.1 · label normalize · 容忍 "AI 工程与论文" vs "AI工程与论文" 空格差异
+      // 之前没 normalize 导致 ~5% 本来对的被假阴性误判
+      const normalized = normalizeL1Label(r.label)
+      const label = L1_NAME_SET.has(normalized) ? normalized : '其他'
       if (!itemsByLabel.has(label)) itemsByLabel.set(label, [])
       itemsByLabel.get(label)!.push(items[r.i]!)
     }

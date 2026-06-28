@@ -43,11 +43,11 @@ describe('OpenAICompatibleEngine.chat() max_tokens 参数化（CR-027）', () =>
 
   afterEach(() => fetchSpy.mockRestore())
 
-  it('cluster() 传 max_tokens=8192', async () => {
+  it('cluster() 单 batch 传 max_tokens=2048 (v1.1 · 分 batch 后每批 30 条够)', async () => {
     const eng = new OpenAICompatibleEngine({ baseUrl: 'http://x', apiKey: 'k', model: 'm' })
     await eng.cluster([{ id: '1', title: 't', domain: 'd' }])
     const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string)
-    expect(body.max_tokens).toBe(8192)
+    expect(body.max_tokens).toBe(2048)
   })
 
   it('generateQuestion() 传 max_tokens=256', async () => {

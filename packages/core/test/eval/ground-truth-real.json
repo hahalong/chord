@@ -1,8 +1,8 @@
 {
   "version": "1.0",
   "description": "真实数据集 ground truth（人工修正后）。用 itemId 索引，不含标题/URL（隐私边界）。",
-  "lastUpdated": "2026-05-14",
-  "notes": "Seed 由 AI 生成（~80% 准），CORRECTIONS 表里编码了人工修正（基于 2026-05-14 评测）",
+  "lastUpdated": "2026-06-21",
+  "notes": "Seed 由 AI 生成（~80% 准），CORRECTIONS 表里编码了人工修正（基于 2026-05-14 评测） / BC-014 (2026-06-21): 投研报告/Cloudflare 后台/备考 共 9 条 (1 边界 + 8 误分) / BC-014b (2026-06-21): 11 条 GT 修正 (AI 判得比原 GT 准, 主要是工具型入口边界)",
   "items": {
     "xjRBgYhrBCTZtDp3DBUTP": {
       "label": "编程与软件开发",
@@ -25,9 +25,9 @@
       "confidence": "high"
     },
     "JKbQA_wCS1Yvpl2fDsUyM": {
-      "label": "其他",
+      "label": "投资与金融市场",
       "confidence": "high",
-      "notes": "紫光云 course，主题不明"
+      "notes": "BC-014b: 资管投资课程 (原: 其他)"
     },
     "VwJKYURUVouCR3JMSLy1T": {
       "label": "编程与软件开发",
@@ -68,9 +68,9 @@
       "confidence": "high"
     },
     "cXhQ4p2kXQ__BPrDtAjKe": {
-      "label": "其他",
+      "label": "个人创作与生活",
       "confidence": "high",
-      "notes": "蔚来班车信息，非招聘"
+      "notes": "BC-014b: 生活服务信息 (原: 其他)"
     },
     "Q0qkZZbEfyrC8uNzOs8RK": {
       "label": "招聘信息",
@@ -162,8 +162,9 @@
       "confidence": "high"
     },
     "1y81i27_-RuZ83whvaklO": {
-      "label": "AI 应用与工具",
-      "confidence": "high"
+      "label": "工具型入口",
+      "confidence": "high",
+      "notes": "BC-014b: VPN 服务 (原: AI 应用与工具)"
     },
     "HGzTB6_HYrb3xn-sx6AaE": {
       "label": "AI 工程与论文",
@@ -190,8 +191,9 @@
       "confidence": "high"
     },
     "Gxry4JS4kl0vxTc1z_VBZ": {
-      "label": "AI 应用与工具",
-      "confidence": "high"
+      "label": "工具型入口",
+      "confidence": "high",
+      "notes": "BC-014b: 阿里云后台, 不是 AI 产品本身 (原: AI 应用与工具)"
     },
     "ts2KPGlpG5YmZEDuPa7Vi": {
       "label": "AI 应用与工具",
@@ -280,8 +282,9 @@
       "confidence": "high"
     },
     "xzZaqOYcEvlUpg-PVPyqi": {
-      "label": "AI 应用与工具",
-      "confidence": "high"
+      "label": "工具型入口",
+      "confidence": "high",
+      "notes": "BC-014b: 阿里云后台, 不是 AI 产品本身 (原: AI 应用与工具)"
     },
     "d9YPGGo7LAMrXPNtcQEKI": {
       "label": "AI 应用与工具",
@@ -365,8 +368,9 @@
       "confidence": "high"
     },
     "V2L93Q_dyij-CyGZJqfoc": {
-      "label": "投资与金融市场",
-      "confidence": "high"
+      "label": "工具型入口",
+      "confidence": "high",
+      "notes": "BC-014b: 订阅管理后台 (原: 投资与金融市场)"
     },
     "-cvuifxcAVUjhM2S96_Dd": {
       "label": "投资与金融市场",
@@ -436,8 +440,9 @@
       "confidence": "high"
     },
     "HYsBZMhE0jfIE63wZkySu": {
-      "label": "投资与金融市场",
-      "confidence": "high"
+      "label": "工具型入口",
+      "confidence": "high",
+      "notes": "BC-014b: 订阅定价管理页 (原: 投资与金融市场)"
     },
     "YL0kMg-qykMWReOa1uCU6": {
       "label": "其他",
@@ -600,14 +605,14 @@
       "notes": "\"公众号\" 信息不明"
     },
     "sIcMdmFXixzo29ucmlV_-": {
-      "label": "其他",
+      "label": "工具型入口",
       "confidence": "high",
-      "notes": "Grafana localhost dashboard"
+      "notes": "BC-014b: 监控后台 (原: 其他)"
     },
     "zoGPZYK_72zbQTF25SjRv": {
-      "label": "其他",
+      "label": "工具型入口",
       "confidence": "high",
-      "notes": "SocketPro 不明"
+      "notes": "BC-014b: 代理服务 (原: 其他)"
     },
     "MBFf9gqKb6c1apD0_LHER": {
       "label": "个人创作与生活",
@@ -656,8 +661,9 @@
       "confidence": "high"
     },
     "Q2k0GSOyWulvvo5tYHKHD": {
-      "label": "其他",
-      "confidence": "high"
+      "label": "工具型入口",
+      "confidence": "high",
+      "notes": "BC-014b: 内网管理后台 (原: 其他)"
     },
     "AzpIOysSmo5e8TXropNjR": {
       "label": "AI 工程与论文",
@@ -707,6 +713,51 @@
     "KSZDTaEwEpig5SSZ_VnbL": {
       "label": "投资与金融市场",
       "confidence": "high"
+    },
+    "YHyUCFMr6sMCAp1hM7KJ2": {
+      "label": "招聘信息",
+      "confidence": "high",
+      "notes": "BC-014: 跟 v1 (sf47VASG1) 对齐, 用户保存意图是看招聘信息"
+    },
+    "bcvGoLRGSZyZHfan8C4Aw": {
+      "label": "测试与面试",
+      "confidence": "high",
+      "notes": "BC-014: 贵州人才博览会备考计划"
+    },
+    "JJBOb-Fndn7Fq6fFLZChc": {
+      "label": "投资与金融市场",
+      "confidence": "high",
+      "notes": "BC-014: 软件股全景投研报告"
+    },
+    "iEIMOqrudfhjq-pGFKjyD": {
+      "label": "半导体与硬科技",
+      "confidence": "high",
+      "notes": "BC-014: Cerebras IPO 半导体公司投研"
+    },
+    "qw5yK5wC3yRfbSHz6zTSx": {
+      "label": "半导体与硬科技",
+      "confidence": "high",
+      "notes": "BC-014: 人形机器人产业链投研"
+    },
+    "S80UqgsgGgyKPNpRFWP3J": {
+      "label": "半导体与硬科技",
+      "confidence": "high",
+      "notes": "BC-014: 人形机器人产业链投研 v2"
+    },
+    "Xh7x3OX-_tffKV1zDelfh": {
+      "label": "半导体与硬科技",
+      "confidence": "high",
+      "notes": "BC-014: 光通信/光模块产业链投研"
+    },
+    "Wy8O6qeeKVE2e_9GAge62": {
+      "label": "工具型入口",
+      "confidence": "high",
+      "notes": "BC-014: Cloudflare Workers & Pages 后台"
+    },
+    "ZxIoHRoCwywJZ_q2IhHJv": {
+      "label": "工具型入口",
+      "confidence": "high",
+      "notes": "BC-014: Cloudflare API Tokens 控制台"
     }
   }
 }

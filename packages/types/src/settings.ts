@@ -39,6 +39,7 @@ export type AIProvider =
   | 'anthropic'
   | 'openai'
   | 'google'
+  | 'deepseek'
   | 'doubao'
   | 'kimi'
   | 'zhipu'

@@ -75,6 +75,14 @@ export const PRESET_ENGINES = {
     model: 'gpt-4o-mini',
     provider: 'openai' as const,
   },
+  // DeepSeek v4-flash 是性价比最高的中等强度模型 ($0.14/M input)
+  // 实测意图 prompt 下 V4-Pro 86% 准确率, V4-Flash 略低但比 GLM-4-Flash 强一档
+  // chat 是别名指向最新生产模型 (V4-Flash thinking-off 模式)
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+    provider: 'deepseek' as const,
+  },
   google: {
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     model: 'gemini-1.5-flash',
