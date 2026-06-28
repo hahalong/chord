@@ -68,14 +68,44 @@ export function Settings() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  // v1.1.1 · 切到一个已经能跑的 provider (chord_bundled 或已有 key 的)
+  //   弹 confirm 让用户决定要不要立刻重新分析。没 key 的 provider 不弹
+  async function maybeOfferRecluster(providerLabel: string) {
+    const fresh = await adapter.getSettings()
+    if (!fresh.aiEngine.apiKey) return  // 没 key 不能跑, 静默退出
+    const ok = confirm(`要立刻用「${providerLabel}」重新分析你的收藏吗？\n\n已有的分类会被替换。`)
+    if (!ok) return
+    setReclustering(true)
+    setReclusterDone(false)
+    try {
+      // 清旧 cluster + 调用 recluster (走生产路径含 keepalive)
+      await chrome.storage.local.remove('chord_clusters')
+      await ClusterService.recluster(adapter, buildEngine(fresh.aiEngine))
+      setReclusterDone(true)
+      setTimeout(() => setReclusterDone(false), 6000)
+    } catch (err) {
+      console.error('AI recluster failed:', err)
+    } finally {
+      setReclustering(false)
+    }
+  }
+
   // 切换 provider 时同步把对应 provider 的 Key 写到输入框
+  // v1.1.1 · 切到 chord_bundled 或已有 key 的 provider → 弹 confirm 让用户决定要不要立刻重跑
+  //         切到没 key 的 provider (如 OpenAI 还没填) → 不弹, 等用户 saveKey 时再问
   async function switchProvider(newProvider: typeof ai.provider) {
     if (!newProvider) return
+    if (newProvider === ai.provider) return  // 没切换不动
     const stored = ai.providerKeys?.[newProvider] ?? ''
     setKeyInput(stored)
     setPingResult(null)
     setEditingKey(false)
     await patch({ aiEngine: { ...ai, provider: newProvider } })
+
+    // 切完看新 provider 能不能跑——能就问要不要立刻重跑
+    const meta = PROVIDERS.find((p) => p.id === newProvider)
+    const label = meta?.label ?? newProvider
+    await maybeOfferRecluster(label)
   }
 
   async function saveKey() {
@@ -96,19 +126,10 @@ export function Settings() {
       },
     })
     setEditingKey(false)
-    if (becomingActive) {
-      setReclustering(true)
-      setReclusterDone(false)
-      try {
-        const fresh = await adapter.getSettings()
-        await ClusterService.recluster(adapter, buildEngine(fresh.aiEngine))
-        setReclusterDone(true)
-        setTimeout(() => setReclusterDone(false), 6000)
-      } catch (err) {
-        console.error('AI recluster failed:', err)
-      } finally {
-        setReclustering(false)
-      }
+    // v1.1.1 · 保存 key 后弹 confirm 询问是否重跑（之前是直接 recluster, 没问用户）
+    if (becomingActive || !!trimmed) {
+      const meta = PROVIDERS.find((p) => p.id === provider)
+      await maybeOfferRecluster(meta?.label ?? provider)
     }
   }
 

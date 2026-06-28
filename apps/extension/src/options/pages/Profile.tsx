@@ -308,13 +308,14 @@ export function Profile() {
 // ─── Chord Triad 释义 footer ──────────────────────────────
 
 function ChordTriadFooter() {
-  const open = signal(false)
+  // v1.1.1 · bug fix: useState 替换 signal() — component 内部 signal 每次 render 都新建, 状态丢失
+  const [open, setOpen] = useState(false)
   return (
-    <details class="triad-footer" open={open.value} onToggle={(e) => { open.value = (e.target as HTMLDetailsElement).open }}>
+    <details class="triad-footer" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
       <summary class="triad-summary">
         <span class="triad-mark">♪</span>
         <span>关于 <strong>Chord Triad</strong> · 三和弦自我</span>
-        <span class="triad-toggle">{open.value ? '收起' : '展开'}</span>
+        <span class="triad-toggle">{open ? '收起' : '展开'}</span>
       </summary>
       <div class="triad-body">
         <p>

@@ -109,13 +109,29 @@ export function ReclusterStatusBar() {
   }
 
   // 有错误 → 显示
+  // v1.1.1 · 删 "已 fallback 到本地算法" 误导文案 (v0.1.3 起禁用静默 fallback, 文案撒谎)
+  //   实际行为: AI 失败 → 旧分类保留 + lastError 写进 status, 不会自动用 tfidf
+  //   加重试按钮: 智谱 500 多是瞬时故障, 重试通常就好
   if (!s.running && s.lastError && !dismissed.value) {
+    const isApiError = /HTTP \d+|API error/.test(s.lastError)
+    const friendly = isApiError
+      ? 'AI 服务暂时无响应（多是后端瞬时故障）'
+      : s.lastError.slice(0, 80)
     return (
       <div class="recluster-status-bar recluster-error">
         <div class="rsb-text">
-          <div class="rsb-title">⚠️ 分类时出错</div>
-          <div class="rsb-meta">{s.lastError} · 已 fallback 到本地算法</div>
+          <div class="rsb-title">⚠️ AI 分类失败</div>
+          <div class="rsb-meta">{friendly} · 旧分类保留中</div>
         </div>
+        <button
+          class="rsb-close"
+          style="margin-right:6px;padding:4px 12px;background:var(--rose);color:white;border-radius:8px"
+          onClick={() => {
+            chrome.runtime.sendMessage({ type: 'RECLUSTER_NOW' }).catch(() => {})
+            dismissed.value = true
+          }}
+          title="重试"
+        >重试</button>
         <button class="rsb-close" onClick={() => { dismissed.value = true }} title="收起">×</button>
       </div>
     )

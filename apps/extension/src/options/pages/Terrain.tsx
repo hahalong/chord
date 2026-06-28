@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { signal, computed } from '@preact/signals'
 import type { Cluster, AIEngineSettings, Item, SaveIntent, InterestState, ClusterUserIntent, UserActionIntent } from '@chord/types'
 import { ChromeStorageAdapter } from '../../storage/ChromeStorageAdapter.js'
@@ -368,9 +368,9 @@ export function Terrain() {
         {loading.value ? (
           <div class="terrain-state-msg">加载兴趣地形…</div>
         ) : allClusters.value.length === 0 && !clustering.value ? (
-          <FirstAnalysisPanel itemCount={allItems.value.length} />
+          <FirstAnalysisPanel itemCount={allItems.value.length} onTrigger={forceRecluster} />
         ) : allClusters.value.length === 0 && clustering.value ? (
-          <FirstAnalysisPanel itemCount={allItems.value.length} clustering />
+          <FirstAnalysisPanel itemCount={allItems.value.length} clustering onTrigger={forceRecluster} />
         ) : (
           <>
             <div class="terrain-card-hdr">
@@ -516,30 +516,30 @@ export function Terrain() {
 
 // 首次分析进度面板：用户没 cluster 时显示
 // 订阅 chord_recluster_status 显示精准 ETA；没在跑时显示「等待分析」+ 手动触发按钮
-function FirstAnalysisPanel({ itemCount, clustering: showClustering }: { itemCount: number; clustering?: boolean }) {
-  const status = signal<{ running?: boolean; totalItems?: number; estimatedSeconds?: number; startedAt?: number; lastError?: string } | null>(null)
-  const tick = signal(0)
+function FirstAnalysisPanel({ itemCount, clustering: showClustering, onTrigger }: { itemCount: number; clustering?: boolean; onTrigger?: () => void | Promise<void> }) {
+  // v1.1.1 · bug fix: useState 替换 signal() (同 ReclusteringOverlay)
+  const [status, setStatus] = useState<{ running?: boolean; totalItems?: number; estimatedSeconds?: number; startedAt?: number; lastError?: string } | null>(null)
+  const [, setTick] = useState(0)
 
   useEffect(() => {
     chrome.storage.local.get('chord_recluster_status', (data) => {
-      status.value = data['chord_recluster_status'] as typeof status.value ?? null
+      setStatus((data['chord_recluster_status'] as typeof status) ?? null)
     })
     const listener = (changes: { [k: string]: chrome.storage.StorageChange }) => {
       if (changes['chord_recluster_status']) {
-        status.value = changes['chord_recluster_status'].newValue ?? null
+        setStatus(changes['chord_recluster_status'].newValue ?? null)
       }
     }
     chrome.storage.onChanged.addListener(listener)
-    const interval = setInterval(() => { tick.value++ }, 1000)
+    const interval = setInterval(() => setTick((t) => t + 1), 1000)
     return () => {
       chrome.storage.onChanged.removeListener(listener)
       clearInterval(interval)
     }
   }, [])
 
-  const s = status.value
+  const s = status
   const isRunning = showClustering || s?.running
-  void tick.value
   const elapsed = s?.startedAt ? Math.floor((Date.now() - s.startedAt) / 1000) : 0
   const eta = s?.estimatedSeconds ?? Math.max(15, Math.round(itemCount / 50 * 5 + 10))
   const remaining = Math.max(0, eta - elapsed)
@@ -576,13 +576,19 @@ function FirstAnalysisPanel({ itemCount, clustering: showClustering }: { itemCou
   }
 
   // 没在跑但也没 cluster：可能是刚装上没触发，或上次失败
+  // v1.1.1 · 修 bug "文案说点下方按钮但其实没按钮" · 加 onTrigger 触发按钮
   return (
     <div class="first-analysis-panel">
       <h3 class="fap-title">还没生成兴趣地形</h3>
       {s?.lastError ? (
         <p class="fap-error">上次分析出错：{s.lastError}</p>
       ) : (
-        <p class="fap-sub">{itemCount} 条内容已准备好，点下方按钮开始分析（30-60 秒）</p>
+        <p class="fap-sub">{itemCount} 条内容已准备好（30-60 秒）</p>
+      )}
+      {onTrigger && (
+        <button class="ob-next" style="margin-top:14px" onClick={() => { void onTrigger() }}>
+          {s?.lastError ? '重试' : '开始分析'}
+        </button>
       )}
     </div>
   )
@@ -591,32 +597,35 @@ function FirstAnalysisPanel({ itemCount, clustering: showClustering }: { itemCou
 // 重新分析覆盖层：已有旧 cluster 数据 + 正在跑新 recluster 时，盖在 canvas 上
 // 让用户清楚知道「旧数据在右栏，新数据正在路上」
 // 监听两个信号源：forceShow（Terrain 内部触发）+ chord_recluster_status.running（SW 后台触发）
+// v1.1.1 · bug fix: useState 替换 signal()
+//   旧 bug: signal() 在 component 内部调用每次 re-render 都建新 signal,
+//          useEffect 闭包的 tick.value++ 改的是旧 signal, 当前渲染读的是新 signal,
+//          → "已用 0 秒" 永远不涨
 function ReclusteringOverlay({ itemCount, forceShow }: { itemCount: number; forceShow: boolean }) {
-  const status = signal<{ running?: boolean; totalItems?: number; estimatedSeconds?: number; startedAt?: number; lastError?: string } | null>(null)
-  const tick = signal(0)
+  const [status, setStatus] = useState<{ running?: boolean; totalItems?: number; estimatedSeconds?: number; startedAt?: number; lastError?: string } | null>(null)
+  const [, setTick] = useState(0)
 
   useEffect(() => {
     chrome.storage.local.get('chord_recluster_status', (data) => {
-      status.value = data['chord_recluster_status'] as typeof status.value ?? null
+      setStatus((data['chord_recluster_status'] as typeof status) ?? null)
     })
     const listener = (changes: { [k: string]: chrome.storage.StorageChange }) => {
       if (changes['chord_recluster_status']) {
-        status.value = changes['chord_recluster_status'].newValue ?? null
+        setStatus(changes['chord_recluster_status'].newValue ?? null)
       }
     }
     chrome.storage.onChanged.addListener(listener)
-    const interval = setInterval(() => { tick.value++ }, 1000)
+    const interval = setInterval(() => setTick((t) => t + 1), 1000)
     return () => {
       chrome.storage.onChanged.removeListener(listener)
       clearInterval(interval)
     }
   }, [])
 
-  const s = status.value
+  const s = status
   const isRunning = forceShow || !!s?.running
   if (!isRunning) return null
 
-  void tick.value
   const elapsed = s?.startedAt ? Math.floor((Date.now() - s.startedAt) / 1000) : 0
   const eta = s?.estimatedSeconds ?? Math.max(30, Math.round(itemCount / 50 * 5 + 30))
   const remaining = Math.max(0, eta - elapsed)
@@ -653,8 +662,9 @@ function ReclusteringOverlay({ itemCount, forceShow }: { itemCount: number; forc
 
 // 完成 toast：监听 running 从 true → false 转换，显示 3 秒淡出
 function CompletionToast() {
-  const visible = signal(false)
-  const text = signal('')
+  // v1.1.1 · bug fix: useState 替换 signal() (同 ReclusteringOverlay)
+  const [visible, setVisible] = useState(false)
+  const [text, setText] = useState('')
   const prevRunning = useRef<boolean>(false)
 
   useEffect(() => {
@@ -668,13 +678,13 @@ function CompletionToast() {
       if (prevRunning.current && !nextRunning) {
         // 刚完成
         if (next?.lastError) {
-          text.value = `⚠️ AI 分析遇到问题：${next.lastError.slice(0, 50)}（已用本地算法兜底）`
+          setText(`⚠️ AI 分析遇到问题：${next.lastError.slice(0, 50)}（已用本地算法兜底）`)
         } else {
           const count = allClusters.value.length
-          text.value = `✓ 已完成 · 识别出 ${count} 个主题`
+          setText(`✓ 已完成 · 识别出 ${count} 个主题`)
         }
-        visible.value = true
-        setTimeout(() => { visible.value = false }, 4000)
+        setVisible(true)
+        setTimeout(() => setVisible(false), 4000)
       }
       prevRunning.current = nextRunning
     }
@@ -682,11 +692,11 @@ function CompletionToast() {
     return () => { chrome.storage.onChanged.removeListener(listener) }
   }, [])
 
-  if (!visible.value) return null
-  const isError = text.value.startsWith('⚠️')
+  if (!visible) return null
+  const isError = text.startsWith('⚠️')
   return (
     <div class={`terrain-toast ${isError ? 'terrain-toast-error' : 'terrain-toast-ok'}`} role="status" aria-live="polite">
-      {text.value}
+      {text}
     </div>
   )
 }

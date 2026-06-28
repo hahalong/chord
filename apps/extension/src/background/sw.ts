@@ -666,11 +666,15 @@ chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
     return false
   }
 
-  // v0.1.3 · 用户切了 AI provider → ChromeStorageAdapter 已清掉旧 cluster, 这里跳防抖立刻重跑
-  if (message['type'] === 'AI_PROVIDER_CHANGED') {
-    const { from, to } = message as { from: string; to: string }
-    console.log(`[Chord] AI provider 切换: ${from} → ${to} · 清防抖 + 强制重跑`)
-    lastImmediateReclusterAt = 0  // 清防抖戳, 让 maybeRunBackgroundRecluster 不被 5min 锁住
+  // v1.1.1 · 已删 AI_PROVIDER_CHANGED 自动触发逻辑
+  //   背景: v0.1.3 切 provider 就自动清+重跑, 用户只点选还没填 key 也会跑 → MissingApiKeyError
+  //   现在: Settings.maybeOfferRecluster 弹 confirm 后用户确认 + 直接在 options page 跑 ClusterService.recluster
+  //         不再走 sw 路径 (避免双跑 + 简化状态管理)
+  //
+  // v1.1.1 · 但 ReclusterStatusBar "重试" 按钮发的是 RECLUSTER_NOW (用户主动点)
+  if (message['type'] === 'RECLUSTER_NOW') {
+    console.log(`[Chord] 用户主动触发 recluster (重试按钮) · 清防抖 + force`)
+    lastImmediateReclusterAt = 0
     maybeRunBackgroundRecluster({ force: true })
     return false
   }
