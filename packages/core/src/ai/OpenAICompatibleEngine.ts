@@ -66,7 +66,8 @@ export class OpenAICompatibleEngine implements AIEngine {
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
     }
     return {
-      content: data.choices[0]?.message.content ?? '',
+      // P1-12 · 加 ?. 防 DeepSeek/智谱 finish_reason=content_filter 时返回 {choices:[{}]} 无 message
+      content: data.choices[0]?.message?.content ?? '',
       usage: data.usage,
       finishReason: data.choices[0]?.finish_reason,
     }

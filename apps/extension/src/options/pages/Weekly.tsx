@@ -12,7 +12,7 @@ import { ChordIcon } from '../../components/ChordIcon.js'
 const adapter = new ChromeStorageAdapter()
 
 const loading = signal(true)
-const weekStats = signal<{ saved: number; processed: number; released: number; used: number; avgEngagement: number } | null>(null)
+const weekStats = signal<{ saved: number; processed: number; released: number; kept: number; avgEngagement: number } | null>(null)
 const overdueItems = signal<Item[]>([])
 const findings = signal<Finding[]>([])
 const moments = signal<JourneyMoment[]>([])
@@ -55,8 +55,9 @@ export function Weekly() {
     const savedThisWeek = items.filter((i) => i.savedAt >= weekStart).length
     // 本周处理（按 processedAt 时间窗口）
     const processedThisWeek = items.filter((i) => i.processedAt != null && i.processedAt >= weekStart)
+    // P0-4 · v2 二向决策没有 'used'；统计改成 kept
     const released = processedThisWeek.filter((i) => i.status === 'released').length
-    const used = processedThisWeek.filter((i) => i.status === 'used').length
+    const kept = processedThisWeek.filter((i) => i.status === 'kept').length
 
     // 本周参与度平均分（基于本周处理过的 item）
     const scores = processedThisWeek.map((i) => i.engagementScore ?? EngagementService.scoreItem(i).score)
@@ -66,7 +67,7 @@ export function Weekly() {
       saved: savedThisWeek,
       processed: processedThisWeek.length,
       released,
-      used,
+      kept,
       avgEngagement,
     }
 
@@ -149,6 +150,10 @@ export function Weekly() {
               <span class="wk-stat-label">已处理</span>
             </div>
             <div class="wk-stat">
+              <span class="wk-stat-num">{stats.kept}</span>
+              <span class="wk-stat-label">留下来</span>
+            </div>
+            <div class="wk-stat">
               <span class="wk-stat-num">{stats.released}</span>
               <span class="wk-stat-label">放手</span>
             </div>
@@ -213,7 +218,8 @@ export function Weekly() {
             {moments.value.map((m, i) => (
               <div key={i} class={`wk-moment wk-moment-${m.type}`}>
                 <div class="wk-moment-icon">
-                  <ChordIcon name={m.type === 'sweet' ? 'used' : 'sakura'} size={16} color={m.type === 'sweet' ? '#5AB870' : 'var(--rose)'} />
+                  {/* P0-4 · v2 没 used，sweet moment 用 keep 图标 */}
+                  <ChordIcon name={m.type === 'sweet' ? 'keep' : 'sakura'} size={16} color={m.type === 'sweet' ? 'var(--lav)' : 'var(--rose)'} />
                 </div>
                 <div class="wk-moment-body">
                   <p class="wk-moment-desc">{m.description}</p>

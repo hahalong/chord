@@ -65,6 +65,11 @@ export class ChromeStorageAdapter implements StorageAdapter {
     await chrome.storage.local.set({ [STORAGE_KEY_ITEMS]: items })
   }
 
+  async putItems(items: Item[]): Promise<void> {
+    // P1-27 · 整个 chord_items 一次性 set，只触发 1 次 onChanged。Migration 类场景必用
+    await chrome.storage.local.set({ [STORAGE_KEY_ITEMS]: items })
+  }
+
   async deleteItem(id: string): Promise<void> {
     const { [STORAGE_KEY_ITEMS]: items = [] } =
       await chrome.storage.local.get(STORAGE_KEY_ITEMS) as { chord_items?: Item[] }

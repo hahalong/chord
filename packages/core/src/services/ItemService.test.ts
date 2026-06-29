@@ -23,6 +23,7 @@ class MemoryAdapter implements StorageAdapter {
     if (idx >= 0) this.items[idx] = item
     else this.items.push(item)
   }
+  async putItems(items: Item[]) { this.items = items }
   async deleteItem(id: string) { this.items = this.items.filter((i) => i.id !== id) }
   async appendEvent(e: ChordEvent) { this.events.push(e) }
   async getEvents() { return this.events }
@@ -131,10 +132,7 @@ describe('ItemService.processItem', () => {
     expect(item.processedAt).toBeDefined()
   })
 
-  it('used → status becomes used', async () => {
-    const item = await processItem(adapter, itemId, 'used', OPTS)
-    expect(item.status).toBe('used')
-  })
+  // P0-4 · v2 二向决策已撤销 'used' Decision — 旧 test 删除（曾测 used → status=used）
 
   it('release → status becomes released', async () => {
     const item = await processItem(adapter, itemId, 'release', OPTS)
@@ -146,8 +144,9 @@ describe('ItemService.processItem', () => {
     expect(adapter.events.some((e) => e.event === 'item_processed')).toBe(true)
   })
 
-  it('saves chip and custom when provided', async () => {
-    const item = await processItem(adapter, itemId, 'used', {
+  it('saves chip and custom when provided (release path)', async () => {
+    // P0-4 · 'used' Decision 撤销后，chip / custom 通过 release 路径传递（向后兼容旧 caller）
+    const item = await processItem(adapter, itemId, 'release', {
       ...OPTS,
       chip: '启发思路',
       custom: '很有用',

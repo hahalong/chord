@@ -15,6 +15,7 @@ class FastAdapter implements StorageAdapter {
     const idx = this.items.findIndex((i) => i.id === item.id)
     if (idx >= 0) this.items[idx] = item; else this.items.push(item)
   }
+  async putItems(items: Item[]) { this.items = items }
   async deleteItem(id: string) { this.items = this.items.filter((i) => i.id !== id) }
   async appendEvent(e: ChordEvent) { this.events.push(e) }
   async getEvents() { return this.events }

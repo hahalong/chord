@@ -111,8 +111,9 @@ export async function recluster(
   // 第一遍：raw clusters（cluster 名来自 AI 返回的 L1 类别名）
   const rawClusters: Cluster[] = results.map((r) => {
     const clusterItems = items.filter((i) => r.itemIds.includes(i.id))
+    // P0-4 · v2 二向决策：kept / released 都算"已处理"；used 是历史数据保留兼容
     const processedCount = clusterItems.filter(
-      (i) => i.status === 'used' || i.status === 'released',
+      (i) => i.status === 'kept' || i.status === 'released' || i.status === 'used',
     ).length
 
     return {

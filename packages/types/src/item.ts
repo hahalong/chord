@@ -128,4 +128,5 @@ export interface SaveItemInput {
   firstSeenAt?: number   // 可选覆盖：导入路径传 Date.now()。不传则在 saveItem 内默认 Date.now()
 }
 
-export type Decision = 'keep' | 'used' | 'release'
+// P0-4 · v2 二向决策 · 'used' 已撤销
+export type Decision = 'keep' | 'release'

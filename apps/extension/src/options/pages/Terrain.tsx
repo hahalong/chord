@@ -678,7 +678,8 @@ function CompletionToast() {
       if (prevRunning.current && !nextRunning) {
         // 刚完成
         if (next?.lastError) {
-          setText(`⚠️ AI 分析遇到问题：${next.lastError.slice(0, 50)}（已用本地算法兜底）`)
+          // P1-9 · CR-046 已撤销静默 fallback；失败时保留旧分类，不降级 tfidf
+          setText(`⚠️ AI 分析遇到问题：${next.lastError.slice(0, 50)}（保留了旧分类，没有降级）`)
         } else {
           const count = allClusters.value.length
           setText(`✓ 已完成 · 识别出 ${count} 个主题`)

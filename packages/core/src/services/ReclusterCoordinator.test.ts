@@ -208,8 +208,10 @@ describe('结构性 lint · 阻止 sw.ts 再裸调 ClusterService.recluster', ()
 
     for (const lineIdx of callLines) {
       // 向上找最近的函数边界, 判断在哪个函数里
+      //   不限回看距离——只要从 ClusterService.recluster 向上看到的"第一个" function 边界
+      //   是 maybeRunBackgroundRecluster / runReclusterWithCoordination 就 OK
       let inAllowedFn = false
-      for (let i = lineIdx; i >= Math.max(0, lineIdx - 50); i--) {
+      for (let i = lineIdx; i >= 0; i--) {
         const l = lines[i]!
         if (/function\s+(maybeRunBackgroundRecluster|runReclusterWithCoordination)\b/.test(l)) {
           inAllowedFn = true

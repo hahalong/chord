@@ -105,6 +105,19 @@ export async function runReclusterWithCoordination(args: {
   now?: () => number
 }): Promise<{ ok: boolean; error?: string }> {
   const now = args.now ?? Date.now
+
+  // P1-15 · 入口拦并发：任何 caller（SW message / Terrain forceRecluster / alarm）撞上 running:true 都 return
+  //   跟 sw.ts 入口 P0-6 storage 检查互不冗余——不同入口的多层防御
+  const curr = await args.storage.get()
+  if (curr?.running) {
+    const elapsed = curr.startedAt ? now() - curr.startedAt : 0
+    const timeout = (curr.estimatedSeconds ?? 60) * 3 * 1000
+    if (elapsed < timeout) {
+      return { ok: false, error: 'already_running' }
+    }
+    // stale → 清掉后继续
+  }
+
   await args.storage.set({
     running: true,
     startedAt: now(),

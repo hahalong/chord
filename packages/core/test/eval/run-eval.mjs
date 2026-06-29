@@ -55,19 +55,39 @@ const BASELINE_PATH = resolve(REPORTS_DIR, 'baseline.json')
 
 if (!existsSync(REPORTS_DIR)) mkdirSync(REPORTS_DIR, { recursive: true })
 
-// AI key（从 apps/extension/.env.local 读，跟生产一致）
-const ENV_PATH = resolve(REPO_ROOT, 'apps/extension/.env.local')
-let AI_KEY = ''
-if (existsSync(ENV_PATH)) {
-  const env = readFileSync(ENV_PATH, 'utf8')
-  AI_KEY = (env.match(/VITE_CHORD_BUNDLED_AI_KEY=(.+)/)?.[1] ?? '').trim()
+// AI provider 支持（v1.1.1 加 · 默认 zhipu glm-4-flash 跟生产一致；EVAL_PROVIDER=deepseek 切 DeepSeek）
+const PROVIDER = process.env.EVAL_PROVIDER ?? 'zhipu'
+const PROVIDER_CFG = {
+  zhipu: {
+    endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    model: process.env.EVAL_MODEL ?? 'glm-4-flash',
+    keyEnv: 'ZHIPU_API_KEY',
+    fallbackEnv: 'VITE_CHORD_BUNDLED_AI_KEY',  // 从 .env.local 读
+  },
+  deepseek: {
+    endpoint: 'https://api.deepseek.com/v1/chat/completions',
+    model: process.env.EVAL_MODEL ?? 'deepseek-chat',
+    keyEnv: 'DEEPSEEK_API_KEY',
+  },
+}
+const cfg = PROVIDER_CFG[PROVIDER]
+if (!cfg) { console.error(`❌ 未知 EVAL_PROVIDER: ${PROVIDER}`); process.exit(1) }
+
+let AI_KEY = process.env[cfg.keyEnv]
+if (!AI_KEY && cfg.fallbackEnv) {
+  const ENV_PATH = resolve(REPO_ROOT, 'apps/extension/.env.local')
+  if (existsSync(ENV_PATH)) {
+    const env = readFileSync(ENV_PATH, 'utf8')
+    AI_KEY = (env.match(new RegExp(`${cfg.fallbackEnv}=(.+)`))?.[1] ?? '').trim()
+  }
 }
 if (!AI_KEY) {
-  console.error('❌ 没找到 VITE_CHORD_BUNDLED_AI_KEY')
+  console.error(`❌ 没找到 ${cfg.keyEnv}（或 .env.local 中的 ${cfg.fallbackEnv}）`)
   process.exit(1)
 }
-const ENDPOINT = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-const MODEL = 'glm-4-flash'
+const ENDPOINT = cfg.endpoint
+const MODEL = cfg.model
+console.log(`[Chord eval] PROVIDER=${PROVIDER} MODEL=${MODEL}`)
 
 // ─── AI 调用 ──────────────────────────────────────────
 // v1.1 · 分 batch 跑 · 跟生产 OpenAICompatibleEngine.cluster() 的 batching 对齐

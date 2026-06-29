@@ -29,20 +29,22 @@ export interface MigrationResult {
  */
 export async function migrateUsedToKept(adapter: StorageAdapter): Promise<MigrationResult> {
   const all = await adapter.getItems()
-  // ItemStatus 类型上 'used' 已标 deprecated 但仍允许（向后兼容），运行时数据可能存在
-  const used = all.filter((i) => (i.status as string) === 'used')
-
-  for (const item of used) {
-    const migrated: Item = {
-      ...item,
-      status: 'kept',
-      migratedFromUsed: true,
+  // P1-27 · 改 atomic batch：原先 N×putItem 触发 N×onChanged，配合 P0-5 hydrate 后 listener 每次 getItems → O(N²) IO
+  //         改成 map → 一次性 putItems，只触发 1 次 onChanged
+  let migratedCount = 0
+  const next = all.map((i) => {
+    if ((i.status as string) === 'used') {
+      migratedCount++
+      return { ...i, status: 'kept' as const, migratedFromUsed: true }
     }
-    await adapter.putItem(migrated)
+    return i
+  })
+  if (migratedCount > 0) {
+    await adapter.putItems(next)
   }
 
   return {
-    migratedCount: used.length,
+    migratedCount,
     totalItems: all.length,
   }
 }
@@ -59,21 +61,24 @@ export async function migrateUsedToKept(adapter: StorageAdapter): Promise<Migrat
  */
 export async function migrateSaveIntentsV2(adapter: StorageAdapter): Promise<MigrationResult> {
   const all = await adapter.getItems()
-  const needMigrate = all.filter((i) => i.saveIntent && !i.saveIntents)
-
-  for (const item of needMigrate) {
-    const src: SaveIntentSource = item.saveIntentSource ?? 'rule'
-    const confidence = src === 'rule' ? 1.0 : src === 'ai' ? 0.7 : 0.5
-    const signal: IntentSignal = {
-      intent: item.saveIntent!,
-      confidence,
-      source: src,
+  // P1-27 · atomic batch（同 migrateUsedToKept）
+  let migratedCount = 0
+  const next = all.map((i) => {
+    if (i.saveIntent && !i.saveIntents) {
+      migratedCount++
+      const src: SaveIntentSource = i.saveIntentSource ?? 'rule'
+      const confidence = src === 'rule' ? 1.0 : src === 'ai' ? 0.7 : 0.5
+      const signal: IntentSignal = { intent: i.saveIntent, confidence, source: src }
+      return { ...i, saveIntents: [signal] }
     }
-    await adapter.putItem({ ...item, saveIntents: [signal] })
+    return i
+  })
+  if (migratedCount > 0) {
+    await adapter.putItems(next)
   }
 
   return {
-    migratedCount: needMigrate.length,
+    migratedCount,
     totalItems: all.length,
   }
 }

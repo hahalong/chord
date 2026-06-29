@@ -145,9 +145,9 @@ export async function processItem(
   const item = await adapter.getItem(id)
   if (!item) throw new Error(`Item not found: ${id}`)
 
+  // P0-4 · v2 二向决策 · 'used' Decision 已撤销
   const statusMap: Record<Decision, Item['status']> = {
     keep: 'kept',
-    used: 'used',           // 历史 decision，v2 UI 不再产生；保留映射以兼容旧调用
     release: 'released',
   }
 

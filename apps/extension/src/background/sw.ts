@@ -5,6 +5,7 @@ import {
 } from '@chord/core'
 import { ChromeStorageAdapter } from '../storage/ChromeStorageAdapter.js'
 import { DEFAULT_NOTIFICATIONS } from '@chord/types'
+import type { UserSettings } from '@chord/types'
 import type { BudgetLog, RecallFiredLog, MilestoneFiredLog } from '@chord/core'
 
 const adapter = new ChromeStorageAdapter()
@@ -357,6 +358,22 @@ async function setReclusterStatus(status: {
 }
 
 async function maybeRunBackgroundRecluster(opts: { force?: boolean } = {}) {
+  // P0-6 · 双重防并发——lastImmediateReclusterAt 是 module-level，SW 重启会丢；
+  //         chord_recluster_status.running 落 storage 不会丢，是 source of truth
+  const currStatus = await chrome.storage.local.get('chord_recluster_status')
+  const rs = currStatus['chord_recluster_status'] as { running?: boolean; startedAt?: number; estimatedSeconds?: number } | undefined
+  if (rs?.running) {
+    const elapsed = rs.startedAt ? Date.now() - rs.startedAt : 0
+    const timeout = (rs.estimatedSeconds ?? 60) * 3 * 1000
+    if (elapsed < timeout) {
+      console.log('[Chord] recluster already running (storage flag), skip')
+      return
+    }
+    // stale → 清掉，继续往下跑
+    console.log('[Chord] detected stale recluster status, clearing')
+    await chrome.storage.local.remove('chord_recluster_status')
+  }
+
   const now = Date.now()
   if (!opts.force && now - lastImmediateReclusterAt < IMMEDIATE_RECLUSTER_DEBOUNCE_MS) return
 
@@ -465,13 +482,21 @@ chrome.bookmarks.onCreated.addListener(async (_id, bookmark) => {
     return
   }
 
-  // 低置信度 → 通知 content script 弹询问气泡
+  // 低置信度 → 先保守 saveItem（type='content' 让进书房不被埋没）+ 通知 content script 弹询问气泡
+  //   P0-1 fix: 之前只发气泡不 save —— 用户即使点"放进书房"也只更新 domainPrefs，当前这条永远丢
+  //   现在：先 save，气泡 USER_DOMAIN_PREF handler 收到选择后只修正 type（findItem by url + 改 type）
+  const lowConfResult = await ItemService.saveItem(
+    adapter,
+    { url: bookmark.url, title: bookmark.title ?? '', source: 'bookmark_auto', favicon: getFaviconUrl(bookmark.url), type: 'content', savedAt: earliest },
+    { userId: settings.userId, deviceId: settings.deviceId, engine: buildEngine(settings.aiEngine) },
+  )
   notifyActiveTab({
     type: 'SHOW_CLASSIFICATION_BUBBLE',
     url: bookmark.url,
     title: bookmark.title ?? '',
     domain: classification.domain,
   })
+  if (lowConfResult.status === 'added') scheduleBackgroundRecluster()
 })
 
 // ─── 唤醒定时器 ─────────────────────────────────────────────
@@ -636,12 +661,24 @@ chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
   }
 
   if (message['type'] === 'USER_DOMAIN_PREF') {
-    const { domain, itemType } = message as { domain: string; itemType: 'content' | 'tool' }
-    adapter.getSettings().then((s) => {
-      adapter.putSettings({
+    const { domain, itemType, url } = message as { domain: string; itemType: 'content' | 'tool'; url?: string }
+    ;(async () => {
+      const s = await adapter.getSettings()
+      await adapter.putSettings({
         domainPrefs: { ...s.domainPrefs, [domain]: itemType },
       })
-    })
+      // P0-1 · 低置信度路径已经 save 了 type='content'；这里按 url 找回 item 修正 type
+      //   只改最近 30s 内 save 的（避免误改老 item）
+      if (url) {
+        const items = await adapter.getItems()
+        const recent = items
+          .filter((i) => i.url === url && Date.now() - i.savedAt < 30_000)
+          .sort((a, b) => b.savedAt - a.savedAt)[0]
+        if (recent && recent.type !== itemType) {
+          await adapter.putItem({ ...recent, type: itemType })
+        }
+      }
+    })().catch((e) => console.warn('[Chord] USER_DOMAIN_PREF handler failed:', e))
   }
 
   if (message['type'] === 'GET_TODAY_ITEM') {
@@ -691,7 +728,7 @@ chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
   if (message['type'] === 'PROCESS_ITEM') {
     const { itemId, decision, chip, custom, reason, reasonCustom, deleteBookmark } = message as {
       itemId: string
-      decision: 'keep' | 'used' | 'release'
+      decision: 'keep' | 'release'  // P0-4 · v2 二向决策
       chip?: string
       custom?: string
       reason?: import('@chord/types').ReleaseReason
@@ -800,7 +837,7 @@ async function ensureAIQuestion(itemId: string): Promise<string | null> {
 
 async function handleProcessItem(
   itemId: string,
-  decision: 'keep' | 'used' | 'release',
+  decision: 'keep' | 'release',  // P0-4 · v2 二向决策，'used' 已撤销
   opts: {
     chip?: string
     custom?: string
@@ -853,14 +890,32 @@ async function registerAlarmIfNeeded() {
   if (existing) return
 
   const settings = await adapter.getSettings()
-  const [h, m] = settings.resurfaceTime.split(':').map(Number)
-  const when = nextOccurrenceOf(h ?? 9, m ?? 0).getTime()
+  if (settings.resurfaceFreq === 'off') return
+  // P0-7 · 用 helper 防 NaN（"".split(':') → [""] → Number("") = NaN，?? 不防）
+  const { h, m } = ResurfaceService.parseResurfaceTime(settings.resurfaceTime)
+  const when = nextOccurrenceOf(h, m).getTime()
 
   await chrome.alarms.create('chord_daily_resuface', {
     when,
     periodInMinutes: 24 * 60,
   })
 }
+
+// P0-2 · 监听 chord_settings 里 resurfaceTime / resurfaceFreq 变化，重置 alarm
+//   背景：registerAlarmIfNeeded 有 `if (existing) return` 首次注册保护，
+//         但用户改 resurfaceTime 后没人 clear+重建 alarm，通知继续按原时间发
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return
+  if (!changes['chord_settings']) return
+  const prev = (changes['chord_settings'].oldValue ?? {}) as Partial<UserSettings>
+  const curr = (changes['chord_settings'].newValue ?? {}) as Partial<UserSettings>
+  if (prev.resurfaceTime !== curr.resurfaceTime || prev.resurfaceFreq !== curr.resurfaceFreq) {
+    ;(async () => {
+      await chrome.alarms.clear('chord_daily_resuface')
+      await registerAlarmIfNeeded()
+    })().catch((e) => console.warn('[Chord] re-register alarm failed:', e))
+  }
+})
 
 function notifyActiveTab(msg: Record<string, unknown>) {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -1072,10 +1127,41 @@ async function checkMilestones(input: import('@chord/core').MilestoneInput) {
 }
 
 // 监听 storage 变化，检测 milestone（items_* 和 processed_*）
+//
+// P0-5 · SW 重启后第一次 onChanged 总吞 milestone 跨越
+//   原 bug：MV3 SW 30s 空闲被回收 → lastMilestoneSnapshot=null 丢失。
+//           复活后 onChange 触发 → seed snapshot=current 后 return，跨越被吞。
+//   修法：从 chord_milestones_fired 反推 baseline = 已 fire 过的最大 milestone
+//        99→100 期间 SW 死掉：hydrate 后 baseline=0（没 fire items_100），
+//        下次 onChange prev=0 current=100 → checkMilestones 触发
 let lastMilestoneSnapshot: { items: number; processed: number; streak: number } | null = null
+
+async function hydrateMilestoneSnapshot() {
+  if (lastMilestoneSnapshot) return
+  try {
+    const fired = await getMilestoneFired()
+    const firedKeys = Object.keys(fired)
+    const itemsMax = Math.max(0, ...firedKeys
+      .filter((k) => k.startsWith('items_'))
+      .map((k) => Number(k.slice(6)))
+      .filter(Number.isFinite))
+    const processedMax = fired['processed_100'] ? 100 : 0
+    const streakMax = Math.max(0, ...firedKeys
+      .filter((k) => k.startsWith('streak_'))
+      .map((k) => Number(k.slice(7)))
+      .filter(Number.isFinite))
+    lastMilestoneSnapshot = { items: itemsMax, processed: processedMax, streak: streakMax }
+  } catch (e) {
+    console.warn('[Chord] hydrate milestone snapshot failed:', e)
+    lastMilestoneSnapshot = { items: 0, processed: 0, streak: 0 }
+  }
+}
+
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
   if (areaName !== 'local') return
   if (!changes['chord_items'] && !changes['chord_settings']) return
+
+  await hydrateMilestoneSnapshot()
 
   const items = await adapter.getItems({ type: ['content'] })
   const settings = await adapter.getSettings()
@@ -1083,11 +1169,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
   const processed = items.filter((i) => i.status === 'kept' || i.status === 'released').length
   const streak = settings.streakCount ?? 0
 
-  if (!lastMilestoneSnapshot) {
-    lastMilestoneSnapshot = { items: total, processed, streak }
-    return
-  }
-  const prev = lastMilestoneSnapshot
+  const prev = lastMilestoneSnapshot!
   lastMilestoneSnapshot = { items: total, processed, streak }
 
   if (prev.items !== total || prev.processed !== processed || prev.streak !== streak) {

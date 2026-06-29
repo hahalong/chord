@@ -115,15 +115,27 @@ export function findCachedTodayItem(items: Item[]): Item | null {
   return cached[0] ?? null
 }
 
+// P0-7 · 解析 resurfaceTime 字符串，损坏值（"", "9am", "25:99"）fallback 到 09:00
+//   ?? 不防 NaN—— "".split(':') = [""] → Number("") = NaN，NaN ?? 9 → NaN
+//   必须用 Number.isFinite + 范围检查
+export function parseResurfaceTime(s: string | undefined): { h: number; m: number } {
+  const parts = (s ?? '').split(':').map(Number)
+  const hRaw = parts[0]
+  const mRaw = parts[1]
+  const h = Number.isFinite(hRaw) && hRaw! >= 0 && hRaw! <= 23 ? hRaw! : 9
+  const m = Number.isFinite(mRaw) && mRaw! >= 0 && mRaw! <= 59 ? mRaw! : 0
+  return { h, m }
+}
+
 export function isTimeToResuface(settings: UserSettings): boolean {
   const { resurfaceFreq, resurfaceTime, lastResurfacedAt } = settings
 
   if (resurfaceFreq === 'off') return false
 
-  const [h, m] = resurfaceTime.split(':').map(Number)
+  const { h, m } = parseResurfaceTime(resurfaceTime)
   const now = new Date()
   const scheduled = new Date()
-  scheduled.setHours(h ?? 9, m ?? 0, 0, 0)
+  scheduled.setHours(h, m, 0, 0)
 
   if (!lastResurfacedAt) return now >= scheduled
 

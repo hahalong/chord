@@ -143,6 +143,8 @@ export function Dashboard() {
           </div>
         </div>
 
+        <WeekRhythm />
+
         {/* Queue */}
         <div class="wr-list">
           {loading.value && <div class="wr-loading">加载中…</div>}

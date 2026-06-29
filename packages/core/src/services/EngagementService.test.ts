@@ -49,9 +49,11 @@ describe('EngagementService.scoreItem', () => {
     expect(r.level).toBe('deep')
   })
 
-  it('chip 分数与状态匹配：keep + chip 不加分（chip 仅在 used 时生效）', () => {
+  it('chip 分数与状态匹配：kept + chip 也加分（v2 migrateUsedToKept 后 chip 保留）', () => {
+    // P0-4 · v2 二向决策没 'used'，但 migration 把老 used→kept 时保留 usageChip
+    //         chip bonus 必须在 kept 时也生效，否则老用户的参与度被低估
     const r = scoreItem(makeItem({ status: 'kept', usageChip: '实际用到了', processedAt: Date.now() }))
-    expect(r.score).toBe(20)  // 20 (kept) + 0 (chip ignored)
+    expect(r.score).toBe(50)  // 20 (kept) + 30 ('实际用到了' chip bonus)
   })
 
   it('「＋ 自己说」自定义输入 +10', () => {

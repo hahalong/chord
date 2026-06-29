@@ -77,8 +77,8 @@ function visitPoints(visitCount?: number, lastVisitedAt?: number, now?: number):
 export function scoreItem(item: Item, visitCount?: number, now?: number): EngagementResult {
   let score = DECISION_BASE[item.status] ?? 0
 
-  // chip 加分（仅当 used 状态时）
-  if (item.status === 'used' && item.usageChip) {
+  // chip 加分（v2 没 used，但 migrateUsedToKept 保留 usageChip；新数据 kept 也可能有旧 chip）
+  if ((item.status === 'used' || item.status === 'kept') && item.usageChip) {
     score += CHIP_BONUS[item.usageChip] ?? 0
   }
 

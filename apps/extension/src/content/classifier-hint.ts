@@ -81,7 +81,8 @@ function showClassificationBubble(opts: { url: string; title: string; domain: st
   })
 
   const dismiss = (itemType: 'content' | 'tool') => {
-    chrome.runtime.sendMessage({ type: 'USER_DOMAIN_PREF', domain: opts.domain, itemType })
+    // P0-1 · 带 url 让 SW handler 找回低置信度路径已 save 的 item 修正 type
+    chrome.runtime.sendMessage({ type: 'USER_DOMAIN_PREF', domain: opts.domain, itemType, url: opts.url })
     el.style.opacity = '0'
     el.style.transform = 'translateY(8px)'
     setTimeout(() => removeEl(el), 200)

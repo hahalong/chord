@@ -14,6 +14,9 @@ export interface StorageAdapter {
   getItems(filter?: ItemFilter): Promise<Item[]>
   getItem(id: string): Promise<Item | null>
   putItem(item: Item): Promise<void>
+  // P1-27 · 批量写：一次 set 整个 chord_items，避免 N×putItem → N×onChanged 触发 N²IO
+  //   migration 类场景必用。普通调用方还是用 putItem
+  putItems(items: Item[]): Promise<void>
   deleteItem(id: string): Promise<void>
 
   // Events（只追加，永不修改）
