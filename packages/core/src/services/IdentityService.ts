@@ -470,10 +470,11 @@ function inferMindsetIdentity(
   const oldItems = items.filter((i) => i.savedAt < now - 90 * DAY)
   const oldProcessRate = oldItems.length > 0 ? oldProcessed.length / oldItems.length : 0
 
-  // v3.1 · DORMANT 蛰伏者 —— 曾活跃但近 30 天几乎不保存（必须先于 SETTLER 判定）
+  // v3.1 · DORMANT 蛰伏者 —— 两种"蛰伏"形态（必须先于 SETTLER 判定）
   const longWaitItems = items.filter(
     (i) => i.status === 'pending' && (now - i.savedAt) > 90 * DAY,
   )
+  // 分支 A · 曾活跃但近 30 天几乎不保存（"完全离开"形态）
   if (
     items.length >= 30 &&
     monthlyAvg >= CFG.DORMANT_MIN_MONTHLY_AVG &&
@@ -490,6 +491,27 @@ function inferMindsetIdentity(
     return makeCard('mindset', 'dormant', 'DORMANT', '蛰伏者',
       '你这阵子离开了——这里的内容还在等你回来。',
       `上次保存在 ${Math.round(idleDays)} 天前；累计 ${longWaitItems.length} 条等了你 3 个月以上。`,
+      confidence, extremity)
+  }
+  // 分支 B · v1.1.2 · "持续保存但几乎不打开"形态（HOARDER 配套 mindset 兜底）
+  //   原 bug：199 条 + 100% 未打开 + GENERALIST 这种"屯而不开"用户掉进 5 个 bucket 空隙
+  //   触发：老 item 多（≥ 30）+ 老 item 处理率几乎为 0（< 5%）+ 没进入 EXPLORER/SEEKER 爆发
+  if (
+    items.length >= 50 &&
+    oldItems.length >= CFG.DORMANT_B_MIN_OLD_ITEMS &&
+    oldProcessRate < CFG.DORMANT_B_MAX_OLD_PROCESS_RATE &&
+    recent30.length <= monthlyAvg * 1.2  // 没有爆发式增长（留给 EXPLORER/DEEPENER）
+  ) {
+    const unopenedRate = 1 - oldProcessRate
+    const extremity = Math.max(0.3, Math.min(0.85,
+      0.4 + 0.3 * Math.min(1, oldItems.length / 100) + 0.2 * unopenedRate,
+    ))
+    const confidence = Math.max(0.4, Math.min(0.80,
+      0.45 + 0.25 * Math.min(1, oldItems.length / 80) + 0.10 * unopenedRate,
+    ))
+    return makeCard('mindset', 'dormant', 'DORMANT', '蛰伏者',
+      '你在持续保存，但很少回头打开——内容都在等。',
+      `${oldItems.length} 条老收藏里只处理了 ${Math.round(oldProcessRate * 100)}%。`,
       confidence, extremity)
   }
 

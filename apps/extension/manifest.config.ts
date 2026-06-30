@@ -3,7 +3,7 @@ import { defineManifest } from '@crxjs/vite-plugin'
 export default defineManifest({
   manifest_version: 3,
   name: 'Chord · 回响',
-  version: '1.1.1',
+  version: '1.1.2',
   description: '帮你和曾经保存的内容重新面对面，识别真实兴趣，整理内心。',
 
   permissions: [

@@ -72,6 +72,10 @@ export const IDENTITY_CONFIG = {
   DORMANT_MIN_IDLE_DAYS: 30,
   /** 历史月均保存 ≥ N（避免低活跃用户误判）*/
   DORMANT_MIN_MONTHLY_AVG: 5,
+  /** 分支 B「持续屯但不开」· 老 item（>90 天前 saved）≥ N */
+  DORMANT_B_MIN_OLD_ITEMS: 30,
+  /** 分支 B · 老 item 处理率 < N（几乎不打开 = 蛰伏的另一种形态） */
+  DORMANT_B_MAX_OLD_PROCESS_RATE: 0.05,
 
   // ─── Mindset · EXPLORER（探索者）─────────────────────
   /** 近 30 天新冒头 cluster 数（之前 60 天没出现）*/
