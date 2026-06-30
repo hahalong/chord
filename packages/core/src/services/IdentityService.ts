@@ -84,7 +84,9 @@ export function computeAllIdentities(
   if (consumption) cards.push(consumption)
 
   // mindset 用 full（含 released）—— RETURNER 等信号依赖放手动作
-  const mindset = inferMindsetIdentity(contentItems, visitCounts, now)
+  // v1.1.3 · mindset 也加 hysteresis 防止边界跳变（之前只 radius 有）
+  const prevMindsetId = previousCards?.find((c) => c.dimension === 'mindset')?.id as MindsetIdentity | undefined
+  const mindset = inferMindsetIdentity(contentItems, visitCounts, now, prevMindsetId)
   if (mindset) cards.push(mindset)
 
   // radius 用 full —— release 的内容曾覆盖用户注意力，应该计入注意力范围画像
@@ -436,6 +438,7 @@ function inferMindsetIdentity(
   items: Item[],
   visitCounts: Map<string, number> | undefined,
   now: number,
+  previousId?: MindsetIdentity | null,  // v1.1.3 · 滞后区
 ): IdentityCard | null {
   if (notEnoughData(items)) return null
 
@@ -493,27 +496,10 @@ function inferMindsetIdentity(
       `上次保存在 ${Math.round(idleDays)} 天前；累计 ${longWaitItems.length} 条等了你 3 个月以上。`,
       confidence, extremity)
   }
-  // 分支 B · v1.1.2 · "持续保存但几乎不打开"形态（HOARDER 配套 mindset 兜底）
-  //   原 bug：199 条 + 100% 未打开 + GENERALIST 这种"屯而不开"用户掉进 5 个 bucket 空隙
-  //   触发：老 item 多（≥ 30）+ 老 item 处理率几乎为 0（< 5%）+ 没进入 EXPLORER/SEEKER 爆发
-  if (
-    items.length >= 50 &&
-    oldItems.length >= CFG.DORMANT_B_MIN_OLD_ITEMS &&
-    oldProcessRate < CFG.DORMANT_B_MAX_OLD_PROCESS_RATE &&
-    recent30.length <= monthlyAvg * 1.2  // 没有爆发式增长（留给 EXPLORER/DEEPENER）
-  ) {
-    const unopenedRate = 1 - oldProcessRate
-    const extremity = Math.max(0.3, Math.min(0.85,
-      0.4 + 0.3 * Math.min(1, oldItems.length / 100) + 0.2 * unopenedRate,
-    ))
-    const confidence = Math.max(0.4, Math.min(0.80,
-      0.45 + 0.25 * Math.min(1, oldItems.length / 80) + 0.10 * unopenedRate,
-    ))
-    return makeCard('mindset', 'dormant', 'DORMANT', '蛰伏者',
-      '你在持续保存，但很少回头打开——内容都在等。',
-      `${oldItems.length} 条老收藏里只处理了 ${Math.round(oldProcessRate * 100)}%。`,
-      confidence, extremity)
-  }
+  // v1.1.2 加过 DORMANT 分支 B 已撤销（v1.1.3）
+  //   背景：v1.1.2 用 203 条用户真实数据排查发现，那位用户实际是 EXPLORER（jaccard=0.50 卡死在 < 0.5 边界）
+  //          不是"持续屯不开"形态。分支 B 抓错画像。
+  //   决定：删分支 B，改 EXPLORER 边界 + mindset 加 hysteresis（v1.1.3 真正修法）
 
   // 1. RETURNER 回归者 —— 主动处理老收藏 + release 增长
   if (oldProcessRate > CFG.RETURNER_MIN_OLD_PROCESS_RATE && recent30Released.length >= CFG.RETURNER_MIN_RECENT_RELEASES && oldItems.length >= 10) {
@@ -530,9 +516,10 @@ function inferMindsetIdentity(
   }
 
   // 2. EXPLORER 探索者 —— 多方向涌现 + 求知爆发（开新主题）
+  //   v1.1.3 · jaccard < → ≤：strict `<` 会让 jaccard 恰好等于阈值的数据卡死（v1.1.2 真实排查发现）
   if (
     brandNewClusters.length >= CFG.EXPLORER_MIN_BRAND_NEW_CLUSTERS &&
-    clusterJaccard < CFG.EXPLORER_MAX_JACCARD &&
+    clusterJaccard <= CFG.EXPLORER_MAX_JACCARD &&
     recentMonthly >= monthlyAvg * CFG.EXPLORER_MIN_RECENT_RATIO &&
     recent30.length >= 5
   ) {
@@ -632,7 +619,156 @@ function inferMindsetIdentity(
       confidence, extremity)
   }
 
+  // v1.1.3 · mindset 滞后区 fallback —— 解决"同一天身份反复跳变"+ "边界波动落 UNSEEN"
+  //   跟 radius 一致的机制：cached 身份用宽松版条件重判, 死区内仍视为 prev 身份
+  //   confidence 略降表示"靠滞后区维持"
+  if (previousId) {
+    const fits = stillFitsMindset(previousId, {
+      items, recent30, prev60, oldItems, monthlyAvg, recentMonthly,
+      oldProcessRate, recent30Released, recent30Processed,
+      brandNewClusters, clusterJaccard, longWaitItems, recent30ClusterCount,
+      now, visitCounts,
+    })
+    if (fits) {
+      return makeCardForMindset(previousId, {
+        recent30, oldItems, monthlyAvg, recentMonthly,
+        oldProcessRate, recent30Released, recent30Processed,
+        brandNewClusters, clusterJaccard, longWaitItems, recent30ClusterCount,
+        items, now,
+      })
+    }
+  }
+
   return null
+}
+
+// v1.1.3 · 滞后区: 上次判出的 mindset 身份, 用宽松版条件看是否仍成立
+//   每个身份原阈值 ± HYSTERESIS_*_BAND, 在死区内视为"仍是 prev 身份"
+type MindsetCtx = {
+  items: Item[]
+  recent30: Item[]
+  prev60: Item[]
+  oldItems: Item[]
+  monthlyAvg: number
+  recentMonthly: number
+  oldProcessRate: number
+  recent30Released: Item[]
+  recent30Processed: Item[]
+  brandNewClusters: string[]
+  clusterJaccard: number
+  longWaitItems: Item[]
+  recent30ClusterCount: Map<string, number>
+  now: number
+  visitCounts: Map<string, number> | undefined
+}
+
+function stillFitsMindset(previousId: MindsetIdentity, ctx: MindsetCtx): boolean {
+  const RB = CFG.HYSTERESIS_RATIO_BAND
+  const JB = CFG.HYSTERESIS_JACCARD_BAND
+  const BB = CFG.HYSTERESIS_BRAND_NEW_BAND
+  const PB = CFG.HYSTERESIS_PROCESS_RATE_BAND
+  const SB = CFG.HYSTERESIS_SHARE_BAND
+
+  const { items, recent30, oldItems, monthlyAvg, recentMonthly,
+    oldProcessRate, recent30Released, brandNewClusters, clusterJaccard,
+    longWaitItems, recent30ClusterCount, now } = ctx
+
+  if (previousId === 'dormant') {
+    return items.length >= 30
+        && monthlyAvg >= CFG.DORMANT_MIN_MONTHLY_AVG - 1  // 月均 ± 1 条
+        && recent30.length <= 1 + BB
+        && longWaitItems.length >= 5 - BB
+  }
+  if (previousId === 'returner') {
+    return oldProcessRate > CFG.RETURNER_MIN_OLD_PROCESS_RATE - PB
+        && recent30Released.length >= CFG.RETURNER_MIN_RECENT_RELEASES - BB
+        && oldItems.length >= 10 - BB
+  }
+  if (previousId === 'explorer') {
+    return brandNewClusters.length >= CFG.EXPLORER_MIN_BRAND_NEW_CLUSTERS - BB
+        && clusterJaccard <= CFG.EXPLORER_MAX_JACCARD + JB
+        && recentMonthly >= monthlyAvg * (CFG.EXPLORER_MIN_RECENT_RATIO - RB)
+        && recent30.length >= 5 - BB
+  }
+  if (previousId === 'deepener') {
+    return recent30.length >= monthlyAvg * (CFG.DEEPENER_MIN_RECENT_RATIO - RB)
+        && recent30ClusterCount.size >= CFG.DEEPENER_MIN_BREADTH - BB
+        && brandNewClusters.length <= CFG.DEEPENER_MAX_BRAND_NEW + BB
+  }
+  if (previousId === 'seeker') {
+    const recent30Total = recent30.length
+    let topShareSaved = 0
+    for (const [, n] of recent30ClusterCount) {
+      const share = n / Math.max(1, recent30Total)
+      if (share > topShareSaved) topShareSaved = share
+    }
+    return topShareSaved >= CFG.SEEKER_MIN_TOP_SHARE - SB
+        && recent30Total >= CFG.SEEKER_MIN_RECENT_COUNT - BB
+  }
+  if (previousId === 'settler') {
+    return recentMonthly < monthlyAvg * (CFG.SETTLER_MAX_RECENT_RATIO + RB)
+        && brandNewClusters.length <= 0 + BB
+        && items.length >= CFG.MINDSET_MIN_TOTAL_ITEMS - BB
+  }
+  return false
+}
+
+function makeCardForMindset(
+  id: MindsetIdentity,
+  ctx: Omit<MindsetCtx, 'prev60' | 'visitCounts'>,
+): IdentityCard {
+  const { recent30, oldItems, monthlyAvg, recentMonthly,
+    oldProcessRate, recent30Released, recent30Processed,
+    brandNewClusters, longWaitItems, recent30ClusterCount, items } = ctx
+  const confMul = 0.85  // 滞后区维持 = 略降 confidence
+
+  if (id === 'dormant') {
+    const idleDays = (ctx.now - Math.max(...items.map((i) => i.savedAt))) / DAY
+    const confidence = Math.max(0.4, Math.min(0.90,
+      0.5 + 0.3 * Math.min(1, idleDays / 60) + 0.2 * Math.min(1, longWaitItems.length / 30),
+    )) * confMul
+    return makeCard('mindset', 'dormant', 'DORMANT', '蛰伏者',
+      '你这阵子离开了——这里的内容还在等你回来。',
+      `上次保存在 ${Math.round(idleDays)} 天前；累计 ${longWaitItems.length} 条等了你 3 个月以上。`,
+      confidence, 0.5)
+  }
+  if (id === 'returner') {
+    return makeCard('mindset', 'returner', 'RETURNER', '回归者',
+      '你在跟过去的自己谈判——清理、放手、问"它还重要吗"。',
+      `30 天处理了 ${recent30Processed.length} 条老收藏，放手 ${recent30Released.length} 条。`,
+      0.5 * confMul, 0.5)
+  }
+  if (id === 'explorer') {
+    const ratio = recentMonthly / Math.max(1, monthlyAvg)
+    return makeCard('mindset', 'explorer', 'EXPLORER', '探索者',
+      '你最近在四处试——好奇心比往常更敢飞。',
+      `30 天进了 ${brandNewClusters.length} 个新主题，保存量是月均 ${ratio.toFixed(1)} 倍。`,
+      0.55 * confMul, 0.5)
+  }
+  if (id === 'deepener') {
+    return makeCard('mindset', 'deepener', 'DEEPENER', '深化者',
+      '你最近在原有方向上往深处走——没开新坑，把熟的挖透。',
+      `30 天保存 ${recent30.length} 条，覆盖 ${recent30ClusterCount.size} 个已有主题。`,
+      0.55 * confMul, 0.5)
+  }
+  if (id === 'seeker') {
+    const recent30Total = recent30.length
+    let topCluster: string | undefined
+    let topShareSaved = 0
+    for (const [c, n] of recent30ClusterCount) {
+      const share = n / Math.max(1, recent30Total)
+      if (share > topShareSaved) { topShareSaved = share; topCluster = c }
+    }
+    return makeCard('mindset', 'seeker', 'SEEKER', '求索者',
+      `你最近被「${topCluster}」紧紧抓住——往一个方向深挖。`,
+      `30 天里 ${Math.round(topShareSaved * 100)}% 的注意力都在「${topCluster}」。`,
+      0.55 * confMul, 0.5)
+  }
+  // settler
+  return makeCard('mindset', 'settler', 'SETTLER', '沉淀者',
+    '你慢下来了——这一阵没在追新东西。',
+    `近 30 天保存 ${recent30.length} 条，是月均（${monthlyAvg.toFixed(0)} 条）的 ${Math.round(recentMonthly / Math.max(1, monthlyAvg) * 100)}%。`,
+    0.55 * confMul, 0.5)
 }
 
 // ─── Radius（3）SPECIALIST / GENERALIST / SWITCHER ────────────

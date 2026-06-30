@@ -239,26 +239,6 @@ export const FIXTURES: IdentityFixture[] = [
     },
     expected: { consumption: 'hoarder', mindset: 'dormant', radius: 'generalist' },
   },
-  {
-    // v1.1.2 · DORMANT 分支 B fixture — "持续屯但不开"画像
-    //   原 bug：用户截图 199 条 + 100% 未打开 + GENERALIST，mindset 落到 UNSEEN
-    //   修法：DORMANT 加分支 B（HOARDER 配套 mindset 兜底）
-    mbti: 'HZG', name: '持续屯但不开的囤积家',
-    spec: {
-      caseId: 'cb12b', name: 'HZG-B',
-      clusterDistribution: [
-        { name: 'AI 应用与工具', count: 28 }, { name: '健身', count: 22 },
-        { name: '投资', count: 22 }, { name: '心理学', count: 20 },
-        { name: '编程', count: 18 }, { name: '设计', count: 18 },
-        { name: '历史', count: 16 }, { name: '语言学习', count: 16 },
-        { name: '商业', count: 14 }, { name: '科普', count: 14 },
-        { name: '生活方式', count: 11 },
-      ],
-      processRate: 0,  // 100% 未打开
-      ageRange: { oldestDaysAgo: 365, newestDaysAgo: 2 },  // 最近还在保存
-    },
-    expected: { consumption: 'hoarder', mindset: 'dormant', radius: 'generalist' },
-  },
 
   // ─── 单维度 primary 兜底 fixture ───
   {

@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "eval:synthetic": "pnpm --filter @chord/core eval:synthetic",
     "eval:real": "pnpm --filter @chord/core eval:real",
+    "eval:stability": "pnpm --filter @chord/core eval:stability",
     "eval:user-storage": "pnpm --filter @chord/core eval:user-storage",
     "eval:real:intent": "pnpm --filter @chord/core eval:real:intent",
     "eval:user-storage:intent": "pnpm --filter @chord/core eval:user-storage:intent",

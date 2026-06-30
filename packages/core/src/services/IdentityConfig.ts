@@ -72,10 +72,6 @@ export const IDENTITY_CONFIG = {
   DORMANT_MIN_IDLE_DAYS: 30,
   /** 历史月均保存 ≥ N（避免低活跃用户误判）*/
   DORMANT_MIN_MONTHLY_AVG: 5,
-  /** 分支 B「持续屯但不开」· 老 item（>90 天前 saved）≥ N */
-  DORMANT_B_MIN_OLD_ITEMS: 30,
-  /** 分支 B · 老 item 处理率 < N（几乎不打开 = 蛰伏的另一种形态） */
-  DORMANT_B_MAX_OLD_PROCESS_RATE: 0.05,
 
   // ─── Mindset · EXPLORER（探索者）─────────────────────
   /** 近 30 天新冒头 cluster 数（之前 60 天没出现）*/
@@ -162,6 +158,13 @@ export const IDENTITY_CONFIG = {
   HYSTERESIS_SHARE_BAND: 0.05,
   HYSTERESIS_CLUSTER_BAND: 1,
   HYSTERESIS_ENTROPY_BAND: 0.05,
+  // v1.1.3 · mindset 滞后区（之前只 radius 有，CR-047 漏了 mindset 6 个分支）
+  //   背景：jaccard < 0.5 这种 strict 阈值卡死 0.50 真实用户数据；recent30 加 1 条就 brandNew 多 1 个 → 身份跳变
+  //   思路：跟 radius 一样——cached mindset 身份阈值 ± 死区内仍视为成立
+  HYSTERESIS_JACCARD_BAND: 0.05,        // EXPLORER jaccard / SWITCHER jaccard
+  HYSTERESIS_RATIO_BAND: 0.15,          // EXPLORER/DEEPENER/SETTLER recentRatio
+  HYSTERESIS_BRAND_NEW_BAND: 1,         // brandNewClusters 数 ± 1
+  HYSTERESIS_PROCESS_RATE_BAND: 0.03,   // RETURNER oldProcessRate
 
   // ─── Radius · SWITCHER（跳跃者）─────────────────────
   SWITCHER_MAX_JACCARD: 0.3,

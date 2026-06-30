@@ -8,6 +8,7 @@
     "test:watch": "vitest",
     "eval:synthetic": "node test/eval/run-eval.mjs synthetic",
     "eval:real": "node test/eval/run-eval.mjs real",
+    "eval:stability": "node test/eval/run-eval-stability.mjs real",
     "chord:inspect": "node test/eval/inspect-user-storage.mjs",
     "chord:diag-terrain": "node test/eval/diag-terrain.mjs",
     "eval:user-storage": "node test/eval/inspect-user-storage.mjs --export && CHORD_EVAL_REAL_DATASET=/tmp/chord-user-snapshot.json node test/eval/run-eval.mjs real",

@@ -453,7 +453,8 @@ console.log(`\n报告: ${reportPath}`)
 // 之前 bug：每次通过 -2% 阈值就覆盖 → 多轮单向漂移 82.5 → 80.7 → 79 → ...
 // 现在：默认只在准确率 ≥ 当前 baseline 时更新（即新最高）；用 --update-baseline 显式覆盖（如有意降低）
 const FORCE_UPDATE = process.argv.includes('--update-baseline')
-if (allPass) {
+const SKIP_BASELINE_WRITE = process.env.EVAL_SKIP_BASELINE_WRITE === '1'  // stability 套件用
+if (allPass && !SKIP_BASELINE_WRITE) {
   const baselineFile = existsSync(BASELINE_PATH) ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) : {}
   const oldAcc = baselineFile[MODE]?.accuracy ?? 0
   const shouldUpdate = FORCE_UPDATE || metrics.accuracy >= oldAcc
@@ -474,6 +475,8 @@ if (allPass) {
     console.log(`✓ 通过阈值但准确率 ${(metrics.accuracy * 100).toFixed(1)}% < baseline ${(oldAcc * 100).toFixed(1)}% → baseline 保留不变`)
     console.log(`  如果这是有意降低（如换模型/换数据集），加 --update-baseline 强制覆盖`)
   }
+} else if (allPass) {
+  console.log(`\n阈值通过 (baseline 写入被 EVAL_SKIP_BASELINE_WRITE 跳过)`)
 } else {
   console.log(`\n❌ 阈值未通过，baseline 未更新`)
   process.exit(1)
