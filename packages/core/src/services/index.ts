@@ -48,3 +48,5 @@ export type {
   IntentAnomaly,
   IntentValidationStats,
 } from './IntentValidationService.js'
+export * as ExperimentService from './ExperimentService.js'
+export type { StorageLike as ExperimentStorageLike } from './ExperimentService.js'

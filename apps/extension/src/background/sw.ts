@@ -1,11 +1,12 @@
 import {
   ItemService, ResurfaceService, StreakService, ClusterService, Migration,
   EchoIndexService, NotificationBudgetService, EchoMomentService, RecallService, MilestoneService,
+  ExperimentService,
   buildEngine, classifyURL, getFaviconUrl, nextOccurrenceOf,
 } from '@chord/core'
 import { ChromeStorageAdapter } from '../storage/ChromeStorageAdapter.js'
 import { DEFAULT_NOTIFICATIONS } from '@chord/types'
-import type { UserSettings } from '@chord/types'
+import type { UserSettings, Experiment, ExperimentOutcome } from '@chord/types'
 import type { BudgetLog, RecallFiredLog, MilestoneFiredLog } from '@chord/core'
 
 const adapter = new ChromeStorageAdapter()
@@ -524,6 +525,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return
   }
 
+  // v1.1.4 · Experiment 每日检查到期（§5 "愿意试 7 天"）
+  if (alarm.name === EXPERIMENT_ALARM) {
+    checkDueExperiments().catch((e) => console.warn('[Chord] experiment check failed:', e))
+    return
+  }
+
   if (alarm.name !== 'chord_daily_resuface') return
 
   const settings = await adapter.getSettings()
@@ -635,6 +642,9 @@ chrome.notifications.onClicked.addListener((notifId) => {
     if (notifId.includes('items_')) hash = '#dashboard'
     else if (notifId.includes('streak_')) hash = '#profile'
     else if (notifId.includes('processed_')) hash = '#profile'
+  } else if (notifId.startsWith('experiment_')) {
+    // v1.1.4 · Experiment 通知点击 → 进 Profile 顶部 banner 补选 outcome
+    hash = '#profile'
   } else if (notifId.startsWith('recall_')) {
     hash = '#dashboard'  // 重新召回 → 直接进候响室
   }
@@ -736,6 +746,34 @@ chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
       deleteBookmark?: boolean
     }
     handleProcessItem(itemId, decision, { chip, custom, reason, reasonCustom, deleteBookmark }).then(sendResponse)
+    return true
+  }
+
+  // v1.1.4 · Experiment 闭环 · Profile.tsx CTA 点击 → 注册实验
+  if (message['type'] === 'REGISTER_EXPERIMENT') {
+    const { experimentText, identityCombo, comboName } = message as {
+      experimentText: string
+      identityCombo?: string
+      comboName?: string
+    }
+    ;(async () => {
+      const exp = ExperimentService.createExperiment({
+        experimentText,
+        identityCombo,
+        comboName,
+        startedAt: Date.now(),
+      })
+      await ExperimentService.addExperiment(experimentStorage, exp)
+      await ensureExperimentAlarm()
+      sendResponse({ ok: true, id: exp.id, expiresAt: exp.expiresAt })
+    })().catch((e) => sendResponse({ ok: false, error: String(e) }))
+    return true
+  }
+
+  // v1.1.4 · Experiment 反馈（Chord UI banner / 时间线内的按钮）
+  if (message['type'] === 'RECORD_EXPERIMENT_OUTCOME') {
+    const { id, outcome } = message as { id: string; outcome: ExperimentOutcome }
+    recordExperimentOutcome(id, outcome).then(() => sendResponse({ ok: true }))
     return true
   }
 
@@ -1221,3 +1259,101 @@ async function classifyUnknownIntentsAsync() {
     console.log(`[Chord] intent batch补判: 更新 ${updated} 条 unknown item`)
   }
 }
+
+// ═══════════════ v1.1.4 · Experiment 闭环 (§5 "愿意试 7 天") ═══════════════
+
+const EXPERIMENT_ALARM = 'chord_experiment_check'
+const EXPERIMENT_STORAGE_KEY = 'chord_experiments'
+
+/** chrome.storage adapter for ExperimentService */
+const experimentStorage = {
+  async get(key: string) {
+    const data = await chrome.storage.local.get(key)
+    return data[key] as Experiment[] | undefined
+  },
+  async set(key: string, value: Experiment[]) {
+    await chrome.storage.local.set({ [key]: value })
+  },
+}
+
+async function ensureExperimentAlarm() {
+  const existing = await chrome.alarms.get(EXPERIMENT_ALARM)
+  if (existing) return
+  // 每天检查一次到期实验；首次延迟 1 分钟避免跟启动时其他 alarm 挤在一起
+  await chrome.alarms.create(EXPERIMENT_ALARM, {
+    delayInMinutes: 1,
+    periodInMinutes: 24 * 60,
+  })
+  console.log('[Chord] experiment alarm 已注册')
+}
+
+async function checkDueExperiments() {
+  try {
+    const now = Date.now()
+    // 1. 长期未反馈自动 skip
+    const raw = await ExperimentService.loadAll(experimentStorage)
+    const skipped = ExperimentService.autoSkipStale(raw, now)
+    if (skipped.some((e, i) => e.status !== raw[i]!.status)) {
+      await ExperimentService.saveAll(experimentStorage, skipped)
+    }
+
+    // 2. 找到期未发通知的
+    const due = ExperimentService.findDueExperiments(skipped, now)
+    if (due.length === 0) return
+
+    const settings = await adapter.getSettings()
+    const notif = settings.notifications ?? DEFAULT_NOTIFICATIONS
+    // 通知总开关关掉时不发（沿用 milestone/recall 语义）
+    const notifEnabled = notif.milestone !== false && (!notif.muteUntil || notif.muteUntil <= now)
+
+    let all = skipped
+    for (const exp of due) {
+      if (notifEnabled) {
+        await chrome.notifications.create(`experiment_${exp.id}`, {
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('assets/icon-128.png'),
+          title: '一周前你说想试试',
+          message: `「${exp.experimentText.replace(/<[^>]+>/g, '').slice(0, 80)}」\n\n现在感觉怎么样？`,
+          contextMessage: '点通知打开 Chord 也能补选',
+          buttons: [
+            { title: '✓ 有改变了' },
+            { title: '× 没真做到' },
+          ],
+          requireInteraction: true,
+          priority: 1,
+        })
+      }
+      // 无论通知是否真发出，都标 due — 让打开 Chord 也能看到 banner
+      all = all.map((e) => (e.id === exp.id ? ExperimentService.markNotified(e, now) : e))
+      console.log(`[Chord] experiment due: ${exp.id}`)
+    }
+    await ExperimentService.saveAll(experimentStorage, all)
+  } catch (e) {
+    console.warn('[Chord] checkDueExperiments failed:', e)
+  }
+}
+
+/** 从 notification button / Chord UI 内反馈 outcome, 共享一处逻辑 */
+async function recordExperimentOutcome(id: string, outcome: ExperimentOutcome) {
+  try {
+    await ExperimentService.updateExperiment(experimentStorage, id, (e) =>
+      ExperimentService.recordOutcome(e, outcome, Date.now()),
+    )
+    console.log(`[Chord] experiment ${id} outcome=${outcome}`)
+  } catch (e) {
+    console.warn('[Chord] recordExperimentOutcome failed:', e)
+  }
+}
+
+// notification button click handler
+chrome.notifications.onButtonClicked.addListener(async (notifId, buttonIdx) => {
+  if (!notifId.startsWith('experiment_')) return
+  const expId = notifId.slice('experiment_'.length)
+  const outcome: ExperimentOutcome = buttonIdx === 0 ? 'changed' : 'not_done'
+  await recordExperimentOutcome(expId, outcome)
+  await chrome.notifications.clear(notifId)
+})
+
+// SW 启动时注册 alarm（onInstalled / onStartup 已有 hook, 这里挂到 alarm listener 边上）
+chrome.runtime.onInstalled.addListener(() => { ensureExperimentAlarm() })
+chrome.runtime.onStartup.addListener(() => { ensureExperimentAlarm() })

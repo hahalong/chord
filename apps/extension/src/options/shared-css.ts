@@ -35,6 +35,20 @@ export const SHARED_CSS = `
 @keyframes rsb-slide-in { from { opacity:0; transform:translateY(-100%); } to { opacity:1; transform:translateY(0); } }
 @keyframes rsb-shimmer { 0%,100% { background-position:0% 50%; } 50% { background-position:100% 50%; } }
 @keyframes rsb-pulse { 0%,100% { opacity:0.3 } 50% { opacity:1 } }
+/* v1.1.4 · §5 愿意试 7 天 · 到期回访 banner */
+.exp-banner { position:relative;display:flex;align-items:flex-start;gap:14px;padding:14px 24px 14px;background:linear-gradient(90deg,var(--sky-lt),var(--rose-lt));border-bottom:1px solid var(--rose-md);animation:rsb-slide-in 300ms ease; }
+.exp-banner-icon { font-size:22px;line-height:1.1;flex-shrink:0;padding-top:2px; }
+.exp-banner-body { flex:1;min-width:0; }
+.exp-banner-title { font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px; }
+.exp-banner-quote { font-size:12px;color:var(--text-md);font-family:'Source Serif 4','Songti SC',serif;font-style:italic;line-height:1.5; }
+.exp-banner-actions { display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center; }
+.exp-btn { padding:6px 12px;border:1px solid var(--border2);background:var(--card);color:var(--text);font-size:12px;border-radius:8px;cursor:pointer;font-family:inherit;transition:all 150ms; }
+.exp-btn:hover { background:var(--rose-lt);border-color:var(--rose-md); }
+.exp-btn-changed { color:#3D8B4A;border-color:#B8EDCA; }
+.exp-btn-changed:hover { background:#E8F5E9; }
+.exp-btn-not-done { color:var(--text-lt); }
+.exp-btn-later { background:none;border:none;color:var(--text-lt);text-decoration:underline;font-size:11px;padding:6px 8px; }
+.exp-btn-later:hover { color:var(--text-md); }
 .opt-topbar { height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 32px;gap:32px;background:var(--card); }
 .opt-topbar::before { content:'';display:block;position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad); }
 .opt-topbar { position:relative; }

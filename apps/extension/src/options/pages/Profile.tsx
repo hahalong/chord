@@ -32,6 +32,7 @@ import type {
   IdentityCard,
   IdentityDimension,
   Item,
+  Experiment,
 } from '@chord/types'
 
 const adapter = new ChromeStorageAdapter()
@@ -222,6 +223,8 @@ export function Profile() {
   if (psychGuidance.value) {
     segments.push({ key: 'guidance', node: <GuidanceSection guidance={psychGuidance.value} /> })
   }
+  // v1.1.4 · 用户试过的实验时间线（有历史才显示）
+  segments.push({ key: 'experiment-history', node: <ExperimentHistorySection /> })
   // v3.1.13 · §6 永远渲染——AI 失败/未配置/loading 中也给一个占位卡，避免"消失"困惑
   if (aiHeadline.value) {
     segments.push({
@@ -1054,7 +1057,19 @@ function GuidanceSection({ guidance }: { guidance: PsychGuidance }) {
       <PlaceholderChips
         sectionKey="guidance"
         contextHash={(guidance.slots.naming || '').replace(/<[^>]+>/g, '').slice(0, 32) || 'guidance-empty'}
-        extra={[{ label: '愿意试 7 天 →', isCta: true }]} />
+        extra={[{
+          label: '愿意试 7 天 →',
+          isCta: true,
+          doneLabel: '✓ 7 天后见',
+          // v1.1.4 · 点击注册 experiment · SW 7 天后发通知 + 顶部 banner 补看
+          onClick: () => {
+            chrome.runtime.sendMessage({
+              type: 'REGISTER_EXPERIMENT',
+              experimentText: guidance.slots.experiment,
+              comboName: guidance.comboName,
+            }).catch(() => {})
+          },
+        }]} />
     </section>
   )
 }
@@ -1218,7 +1233,8 @@ function PlaceholderChips({
 }: {
   sectionKey: string
   contextHash: string
-  extra?: { label: string; isCta?: boolean }[]
+  // v1.1.4 · extra chip 加 onClick 回调（用于"愿意试 7 天"注册 experiment）
+  extra?: { label: string; isCta?: boolean; onClick?: () => void; doneLabel?: string }[]
 }) {
   const [rating, setRating] = useState<SectionRating | null>(null)
   const [extraDone, setExtraDone] = useState<Set<number>>(new Set())
@@ -1307,11 +1323,13 @@ function PlaceholderChips({
             key={`x-${i}`}
             class={`chip ${e.isCta ? 'chip-cta' : 'chip-input'} ${extraDone.has(i) ? 'chip-done' : ''}`}
             onClick={() => {
+              if (extraDone.has(i)) return  // 已点过不重复触发
               const next = new Set(extraDone)
               next.add(i)
               setExtraDone(next)
+              e.onClick?.()  // v1.1.4 · 回调触发 REGISTER_EXPERIMENT
             }}
-          >{extraDone.has(i) ? '✓ 已记下' : e.label}</button>
+          >{extraDone.has(i) ? (e.doneLabel ?? '✓ 已记下') : e.label}</button>
         ))}
         <button
           class={`chip chip-input ${showInput || submittedCustom ? 'chip-on' : ''}`}
@@ -1852,3 +1870,82 @@ function comboNarrative(cards: IdentityCard[]): string {
 }
 
 // §5 心理引导文案由 PsychGuidanceService 提供（包含 8 个组合 × 4 槽 + 主身份兜底 + universal fallback）
+
+// ─── v1.1.4 · §5 后接的实验历史时间线 ────────────────────────
+
+const EXPERIMENT_STORAGE_KEY = 'chord_experiments'
+const experimentsList = signal<Experiment[]>([])
+
+function loadExperiments() {
+  chrome.storage.local.get(EXPERIMENT_STORAGE_KEY, (data) => {
+    experimentsList.value = (data[EXPERIMENT_STORAGE_KEY] as Experiment[] | undefined) ?? []
+  })
+}
+
+const OUTCOME_LABEL: Record<string, string> = {
+  changed: '✓ 有改变了',
+  partial: '一般',
+  not_done: '× 没真做到',
+}
+const OUTCOME_COLOR: Record<string, string> = {
+  changed: '#3D8B4A',
+  partial: 'var(--text-md)',
+  not_done: 'var(--text-lt)',
+}
+
+function ExperimentHistorySection() {
+  useEffect(() => {
+    loadExperiments()
+    const listener = (changes: { [k: string]: chrome.storage.StorageChange }) => {
+      if (changes[EXPERIMENT_STORAGE_KEY]) loadExperiments()
+    }
+    chrome.storage.onChanged.addListener(listener)
+    return () => { chrome.storage.onChanged.removeListener(listener) }
+  }, [])
+
+  const list = experimentsList.value
+  // 显示：所有 experiments（active 未到期显示"还剩 N 天"; due 提示补选; completed 记录 outcome）
+  //   completed 只展示最近 5 条避免过长
+  const recent = [...list]
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .slice(0, 8)
+  if (recent.length === 0) return null
+
+  return (
+    <section class="seg">
+      <div class="seg-head">
+        <div class="seg-avatar">回</div>
+        <div class="seg-name">回响 · 你试过的实验</div>
+      </div>
+      <div class="bubble" style="background:var(--card);border:1px solid var(--border)">
+        <div class="b-eyebrow">承诺 · 回访 · 沉淀</div>
+        <ul style="margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px">
+          {recent.map((e) => {
+            const days = Math.floor((Date.now() - e.startedAt) / 86_400_000)
+            const cleanText = e.experimentText.replace(/<[^>]+>/g, '').slice(0, 80)
+            const daysRemain = Math.ceil((e.expiresAt - Date.now()) / 86_400_000)
+            return (
+              <li key={e.id} style="padding:8px 0;border-bottom:1px dashed var(--border);font-size:13px">
+                <div style="color:var(--text-md);font-size:11px;margin-bottom:2px">
+                  {new Date(e.startedAt).toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'})}
+                  {' · '}
+                  {e.status === 'active' && daysRemain > 0 && <span>还剩 {daysRemain} 天</span>}
+                  {e.status === 'due' && <span style="color:var(--rose)">等你反馈</span>}
+                  {e.status === 'skipped' && <span style="color:var(--text-lt)">已跳过</span>}
+                  {e.status === 'completed' && e.outcome && (
+                    <span style={`color:${OUTCOME_COLOR[e.outcome]}`}>{OUTCOME_LABEL[e.outcome]}</span>
+                  )}
+                  {e.status !== 'active' && ' · '}
+                  {e.status !== 'active' && `${days} 天前承诺`}
+                </div>
+                <div style="color:var(--text);font-family:'Source Serif 4',serif;font-style:italic;line-height:1.5">
+                  「{cleanText}」
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </section>
+  )
+}

@@ -11,6 +11,7 @@ import { Privacy } from './pages/Privacy.js'
 import { applySkin } from '../skin.js'
 import { ReclusterStatusBar } from '../components/ReclusterStatusBar.js'
 import { NewVersionBanner } from '../components/NewVersionBanner.js'
+import { ExperimentFollowupBanner } from '../components/ExperimentFollowupBanner.js'
 import { SHARED_CSS } from './shared-css.js'
 
 // 注意：storage key 是 chord_settings（ChromeStorageAdapter 用的），不是 settings
@@ -62,6 +63,7 @@ function App() {
     <div class="options-layout">
       <NewVersionBanner />
       <ReclusterStatusBar />
+      <ExperimentFollowupBanner />
       {/* Top bar */}
       <div class="opt-topbar">
         <div class="opt-logo">
