@@ -35,6 +35,12 @@ export const SHARED_CSS = `
 @keyframes rsb-slide-in { from { opacity:0; transform:translateY(-100%); } to { opacity:1; transform:translateY(0); } }
 @keyframes rsb-shimmer { 0%,100% { background-position:0% 50%; } 50% { background-position:100% 50%; } }
 @keyframes rsb-pulse { 0%,100% { opacity:0.3 } 50% { opacity:1 } }
+/* v1.1.4 · 错误条紧凑单行版——大 banner 压布局, 改成一行轻提醒 */
+.recluster-compact { padding:6px 24px;gap:10px;background:var(--rose-lt);border-bottom:1px solid var(--border2); }
+.rsb-inline-text { flex:1;min-width:0;font-size:12px;color:var(--text-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.rsb-retry { flex-shrink:0;padding:3px 12px;background:none;border:1px solid var(--rose-md);color:var(--rose);font-size:12px;border-radius:7px;cursor:pointer;font-family:inherit;transition:all 150ms; }
+.rsb-retry:hover { background:var(--rose);color:#fff; }
+.recluster-compact .rsb-close { padding:2px 8px;font-size:16px; }
 /* v1.1.4 · §5 愿意试 7 天 · 到期回访 banner */
 .exp-banner { position:relative;display:flex;align-items:flex-start;gap:14px;padding:14px 24px 14px;background:linear-gradient(90deg,var(--sky-lt),var(--rose-lt));border-bottom:1px solid var(--rose-md);animation:rsb-slide-in 300ms ease; }
 .exp-banner-icon { font-size:22px;line-height:1.1;flex-shrink:0;padding-top:2px; }

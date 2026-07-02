@@ -91,16 +91,15 @@ export function Dashboard() {
 
   return (
     <div class="waitroom">
-      {/* AI 调用失败 banner —— sw.ts 写入 chord_recluster_status.lastError 时显示 */}
+      {/* AI 调用失败提示 —— sw.ts 写入 chord_recluster_status.lastError 时显示 */}
+      {/* v1.1.4 · 跟顶部条错开: 顶部条负责轻提醒, 这里给具体引导; 原始错误串翻译成人话 */}
       {reclusterError.value && (
-        <div style="grid-column:1/-1;background:#FDF0EF;border:1px solid #D9706A;border-radius:8px;padding:12px 14px;color:#9A3A35;margin-bottom:16px">
-          <div style="font-weight:600;margin-bottom:4px">⚠️ AI 分类调用失败，主题分组用的是旧数据</div>
-          <div style="font-size:13px;line-height:1.6">
-            {reclusterError.value}<br/>
-            常见原因：<strong>API Key 没配 / Key 失效 / 网络问题</strong>。
-            去 <a href="#settings" style="color:#D9706A;font-weight:600">Settings</a> 检查 AI 配置后，
-            到 <a href="#terrain" style="color:#D9706A;font-weight:600">Terrain</a> 点「重新生成」重试。
-          </div>
+        <div style="grid-column:1/-1;background:var(--rose-lt);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;color:var(--text-md);margin-bottom:16px;font-size:13px;line-height:1.6">
+          {/Failed to fetch|NetworkError/i.test(reclusterError.value)
+            ? '上次 AI 分类没连上网络（网络波动或接口被拦截），主题分组用的是旧数据。'
+            : `上次 AI 分类失败（${reclusterError.value.slice(0, 60)}），主题分组用的是旧数据。`}
+          {' '}去 <a href="#settings" style="color:var(--rose);font-weight:600">设置</a> 检查 AI 配置，
+          或到 <a href="#terrain" style="color:var(--rose);font-weight:600">兴趣地形</a> 点「重新生成」重试。
         </div>
       )}
 
