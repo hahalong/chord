@@ -777,6 +777,14 @@ chrome.runtime.onMessage.addListener((msg: unknown, _sender, sendResponse) => {
     return true
   }
 
+  // v1.1.4 · debug: 手动触发 checkDueExperiments (SW DevTools 里跑, 用户/生产不会误触发)
+  //   用法: chrome.runtime.sendMessage({type: 'DEBUG_CHECK_EXPERIMENTS'})
+  //   典型场景: 改 expiresAt 到过去 → 触发这个 → 立刻看通知效果, 不用等 24h alarm
+  if (message['type'] === 'DEBUG_CHECK_EXPERIMENTS') {
+    checkDueExperiments().then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }))
+    return true
+  }
+
   // v2 二向决策：单条删 Chrome 书签
   if (message['type'] === 'DELETE_BOOKMARK') {
     const { url } = message as { url: string }
